@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.retrospool"
-version = "0.0.2-SNAPSHOT"
+version = "0.0.2"
 
 java {
     toolchain {

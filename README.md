@@ -1,6 +1,6 @@
 # retrospool
 
-**Your AS/400 reports, as PDFs, over the web.**
+**Your AS/400 reports, as PDFs, over the web.** — [site](https://spillers-technology.github.io/RetroSpool/)
 
 Retrospool captures spool files directly from IBM i (AS/400) output queues — no
 printer-session emulation, no TN5250E, no Windows box running an ACS session — and
@@ -53,7 +53,7 @@ docker run --rm -v "$PWD:/app" -w /app -v spool-gradle-cache:/home/gradle/.gradl
   gradle:8.10.2-jdk21 gradle build --no-daemon
 
 # run
-java -jar build/libs/retrospool-0.0.2-SNAPSHOT.jar
+java -jar build/libs/retrospool-0.0.2.jar
 ```
 
 Integration tests (Testcontainers: real Postgres, MinIO, and the actual gpcl6
