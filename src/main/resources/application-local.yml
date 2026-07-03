@@ -1,0 +1,20 @@
+# Local profile overrides (activate with SPRING_PROFILES_ACTIVE=local).
+# Points at the docker-compose Postgres + MinIO + render sidecar.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/spoolgateway
+    username: spool
+    password: spool
+
+gateway:
+  storage:
+    endpoint: http://localhost:9000
+    path-style-access: true
+    access-key: minioadmin
+    secret-key: minioadmin
+  render:
+    url: http://localhost:8085
+
+logging:
+  level:
+    io.retrospool: DEBUG

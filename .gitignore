@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets / env
+*.local
+.env
+*.jks
+*.p12
+*.pfx
+
+# Logs
+*.log
+
+# Node (frontend, Phase 7)
+node_modules/
+dist/

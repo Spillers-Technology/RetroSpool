@@ -1,0 +1,41 @@
+# Local dev dependencies. MinIO is used purely as an external S3-compatible service
+# over the network (never linked into the JVM) — keeps its AGPL out of our build.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: spoolgateway
+      POSTGRES_USER: spool
+      POSTGRES_PASSWORD: spool
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spool -d spoolgateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  # PCL->PDF renderer (GhostPDL gpcl6 behind a tiny HTTP shim). AGPL software used
+  # strictly as an external network service, never linked — see docs/decisions.md D-018.
+  render-sidecar:
+    build: ./render-sidecar
+    ports:
+      - "8085:8080"
+
+volumes:
+  pgdata:
+  miniodata:

@@ -1,0 +1,3 @@
+ACME INVENTORY REPORT
+LINE 2 plain text
+LINE 3 end of report
