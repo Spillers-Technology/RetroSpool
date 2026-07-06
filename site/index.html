@@ -145,6 +145,45 @@
     margin: 1.2rem 0;
   }
   .stack { color: var(--ink-soft); font-size: .95rem; }
+
+  /* maturity tags */
+  .tag {
+    display: inline-block;
+    font-size: .62rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: .08rem .45rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    vertical-align: middle;
+    margin-left: .5rem;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .tag.shipped { color: var(--accent); border-color: var(--accent); }
+  .tag.planned { color: var(--ink-soft); border-style: dashed; }
+  .grid b .tag { margin-left: .4rem; }
+
+  /* product media */
+  .shots { display: grid; gap: 1.1rem; margin: 1.2rem 0 0; }
+  figure {
+    margin: 0;
+    border: 1px solid var(--rule);
+    background: var(--card);
+    padding: .5rem;
+  }
+  figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--rule);
+  }
+  figcaption {
+    font-size: .82rem;
+    color: var(--ink-soft);
+    padding: .55rem .3rem .2rem;
+  }
+
   footer {
     margin-top: 3.2rem;
     border-top: 1px dashed var(--rule);
@@ -204,10 +243,14 @@
       printer is alive. The session was never actually required.
     </p>
     <p>
-      <strong>retrospool</strong> replaces that whole ritual with a headless web service:
-      it polls the queue directly via <a href="https://github.com/IBM/JTOpen">JTOpen</a> —
-      no TN5250E negotiation, no device-name juggling, no port 992 — reads the raw spool
-      bytes, and turns them into PDFs you can pull down or ship onward.
+      <strong>retrospool</strong> is a headless web service built to replace that whole
+      ritual: it reads spool bytes directly via
+      <a href="https://github.com/IBM/JTOpen">JTOpen</a> — no TN5250E negotiation, no
+      device-name juggling, no port 992 — and turns them into PDFs. The
+      <strong>capture-and-render core is built and verified end-to-end</strong>; the
+      queue poller that drains a live <code>OUTQ</code> on a schedule, and export
+      fan-out to S3&nbsp;/&nbsp;SFTP&nbsp;/&nbsp;FTPS, are the next phases (see
+      <a href="#status">status</a>).
     </p>
   </section>
 
@@ -215,7 +258,7 @@
     <h2>The pipeline</h2>
 <pre>
 IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concatenated PCL
-                                                       │
+              [poller: planned]                       │
                        ┌───────────────────────────────┤
                        ▼                               ▼
               store original bytes              render PCL ─▶ PDF
@@ -226,12 +269,21 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
                    tenant-scoped capture (dedup by sha256)
                                    │
                                    ▼
-                    export fan-out: S3 / SFTP / FTPS
+              export fan-out: S3 / SFTP / FTPS  [planned]
 </pre>
+  <p style="font-size:.82rem; color:var(--ink-soft); margin-top:-.4rem">
+    The shaded middle band — <code>sniff → split → store → render → capture</code> — is
+    built and covered by end-to-end tests today. The queue poller that feeds it, and the
+    export fan-out that drains it, are the next phases.
+  </p>
   </section>
 
   <section>
-    <h2>Highlights</h2>
+    <h2>What works today <span class="tag shipped">v0.0.2 · verified</span></h2>
+    <p style="font-size:.9rem; color:var(--ink-soft); margin-top:0">
+      Every item below is implemented and exercised by unit + Testcontainers integration
+      tests against real Postgres, MinIO, and the actual <code>gpcl6</code> sidecar.
+    </p>
     <ul class="grid">
       <li><b>Format sniffing</b>Spool files are <code>DEVTYPE(*USERASCII)</code> opaque
         byte streams — PCL, PDF, plain text, or mystery bytes. Detected from the first
@@ -256,6 +308,41 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
   </section>
 
   <section>
+    <h2>See it work</h2>
+    <p style="font-size:.9rem; color:var(--ink-soft); margin-top:0">
+      retrospool is a headless service — the admin UI is a later phase. Its surfaces today
+      are the REST API and the capture pipeline's output. Endpoint paths, JSON shapes,
+      enum values, and the object-store key scheme below are taken verbatim from the code;
+      host names, IDs, and report contents are mock data.
+    </p>
+    <div class="shots">
+      <figure>
+        <img src="assets/capture-pipeline.png" alt="A PCL statement rendered to PDF beside its tenant-scoped capture record, showing detectedFormat PCL, sha256, storage keys, and renderStatus SUCCESS.">
+        <figcaption>
+          <b>Capture pipeline</b> — a concatenated PCL spool file sniffed, split, stored
+          as <code>.pcl</code>, and rendered to a <code>.pdf</code> sibling via the GhostPDL
+          sidecar. The capture record and audit event mirror the persisted row.
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="assets/test-connection.png" alt="curl POST to /api/connection/test returning a TestConnectionResult with success true, code OK, and elapsedMillis, plus a /api/health check.">
+        <figcaption>
+          <b>Test Connection</b> — the synchronous JTOpen signon endpoint
+          (<code>POST /api/connection/test</code>) returning the real pass/fail result
+          contract. Credentials are taken in the request and never persisted.
+        </figcaption>
+      </figure>
+      <figure>
+        <img src="assets/format-detection.png" alt="Format detection table mapping byte signatures like %PDF- and ESC E to PDF, PCL, TEXT, and UNKNOWN with their handling.">
+        <figcaption>
+          <b>Format detection</b> — how the sniffer maps the first 16 bytes to
+          PDF / PCL / TEXT / UNKNOWN, and where concatenated PCL is split.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
     <h2>Stack</h2>
     <p class="stack">
       Spring Boot 3 &middot; Java 21 (Temurin) &middot; JTOpen &middot; PostgreSQL 16 +
@@ -270,13 +357,35 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
     </div>
   </section>
 
-  <section>
+  <section id="status">
     <h2>Status</h2>
     <p>
-      v0.0.2 — connection layer (TLS signon via <code>SecureAS400</code>, one-click Test
-      Connection), full persistence model, and the capture pipeline with PCL&rarr;PDF
-      rendering, all verified end-to-end against real Postgres/MinIO/GhostPDL. Next: the
-      queue poller against a live host, export destinations, admin API, React UI.
+      <strong>v0.0.2</strong> — pre-1.0 and honest about it. Phases 0&ndash;3 are complete
+      and verified; phases 4&ndash;7 are designed but not yet built.
+    </p>
+    <ul class="grid">
+      <li><b>Connection layer <span class="tag shipped">shipped</span></b>TLS signon via
+        <code>SecureAS400</code> and a synchronous Test Connection endpoint. The mechanism
+        is wired and unit-tested; a live green signon awaits operator host + credentials
+        (no IBM i emulator exists).</li>
+      <li><b>Persistence model <span class="tag shipped">shipped</span></b>Flyway V1+V2,
+        JPA entities and tenant-scoped repositories, write-only <code>SecretResolver</code>,
+        and a reflection gate that fails the build on an un-scoped query.</li>
+      <li><b>Capture pipeline <span class="tag shipped">shipped</span></b>Sniff &rarr; split
+        &rarr; store &rarr; PCL&rarr;PDF render &rarr; dedup, plus S3/MinIO landing storage
+        &mdash; end-to-end tested through the real <code>gpcl6</code> sidecar.</li>
+      <li><b>Queue poller <span class="tag planned">planned</span></b>Scheduled
+        <code>*READY</code> polling per output queue with watermark advance. Gated on a live
+        host to validate against.</li>
+      <li><b>Export destinations <span class="tag planned">planned</span></b>Fan-out to
+        S3 / SFTP / FTPS with retry + backoff. Only the S3 landing store exists today.</li>
+      <li><b>Admin API, HOD submission &amp; React UI <span class="tag planned">planned</span></b>OIDC-guarded
+        admin REST API, the HOD <code>.ws</code> import + approval flow, and the React admin
+        console are all later phases.</li>
+    </ul>
+    <p style="font-size:.85rem; color:var(--ink-soft)">
+      The full phased plan and an append-only decision log live in
+      <a href="https://github.com/Spillers-Technology/RetroSpool/blob/main/docs/implementation-plan.md">docs/</a>.
     </p>
   </section>
 

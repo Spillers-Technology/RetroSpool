@@ -1,0 +1,13 @@
+{
+  "name": "retrospool-product-media",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Repeatable capture of RetroSpool product media (API + capture-pipeline surfaces) into site/assets.",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture-product-media.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

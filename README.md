@@ -17,10 +17,28 @@ via [JTOpen](https://github.com/IBM/JTOpen)**, reads the bytes, and takes it fro
 
 ```
 IBM i OUTQ ─▶ poll (JTOpen) ─▶ sniff format ─▶ split concatenated PCL ─▶ store original
-                                                                        └▶ render PCL→PDF
+             [poller: planned]                                          └▶ render PCL→PDF
                                                                            (GhostPDL sidecar)
                                                     └▶ export fan-out: S3 / SFTP / FTPS
+                                                       [planned]
 ```
+
+The **middle band** — sniff → split → store → render → dedup, plus S3/MinIO landing
+storage — is built and verified end-to-end. The **queue poller** that feeds it and the
+**export fan-out** that drains it are the next phases (see [Status](#status)).
+
+## See it work
+
+retrospool is a headless service today (the React admin UI is a later phase), so its
+surfaces are the REST API and the capture pipeline's output. Every endpoint, field, and
+key scheme shown is taken from the code; host names and report contents are mock data.
+Regenerate these with [`docs/scripts/capture-product-media.mjs`](docs/scripts/capture-product-media.mjs).
+
+| Capture pipeline | Test Connection |
+|---|---|
+| ![PCL rendered to PDF beside its capture record](site/assets/capture-pipeline.png) | ![Test Connection API response](site/assets/test-connection.png) |
+
+![Format detection table](site/assets/format-detection.png)
 
 - **Format detection** — spool files are `DEVTYPE(*USERASCII)` opaque byte streams:
   PCL, PDF, plain text, or mystery bytes. Sniffed from the first 16 bytes.
@@ -40,8 +58,9 @@ IBM i OUTQ ─▶ poll (JTOpen) ─▶ sniff format ─▶ split concatenated PC
 ## Stack
 
 Spring Boot 3 / Java 21 (Temurin) · JTOpen · PostgreSQL 16 + Flyway · PDFBox ·
-AWS SDK v2 · GhostPDL (sidecar container only) · React 18 + Vite (admin UI, planned) ·
-Docker end-to-end (the dev machine needs no JDK).
+AWS SDK v2 (S3 landing store) · GhostPDL (sidecar container only) · Docker end-to-end
+(the dev machine needs no JDK). The SFTP/FTPS exporters (MINA SSHD, Commons Net) and the
+React 18 + Vite admin UI are declared/designed but not yet wired — see Status.
 
 ## Run it
 
@@ -66,9 +85,18 @@ sidecar built from source) run via `gradle integrationTest` — see
 Architecture, data model, the phased plan, and an append-only decision log live in
 [docs/](docs/). Start with [docs/architecture.md](docs/architecture.md).
 
+<a id="status"></a>
+
 ## Status
 
-Phases 0–3 complete: connection layer (SSL signon via `SecureAS400`, Test Connection
-endpoint), full persistence model, and the capture pipeline with rendering — all
-verified against real Postgres/MinIO/GhostPDL in CI-style integration tests. Next up:
-the queue poller (needs a live host), export destinations, admin API, and the React UI.
+**v0.0.2 — pre-1.0.** Phases 0–3 are **complete and verified**; phases 4–7 are designed
+but not yet built.
+
+| Capability | State |
+|---|---|
+| JTOpen connection layer + Test Connection endpoint | **shipped** (mechanism wired & unit-tested; live signon awaits operator host/creds) |
+| Persistence model (Flyway V1+V2, tenant-scoped repos, secrets, isolation gate) | **shipped** |
+| Capture pipeline (sniff → split → store → PCL→PDF render → dedup) + S3 landing store | **shipped** (end-to-end tested vs real Postgres/MinIO/GhostPDL) |
+| Queue poller (scheduled `*READY` drain + watermark) | planned |
+| Export destinations (S3 / SFTP / FTPS fan-out + retry) | planned |
+| Admin REST API + OIDC, HOD `.ws` submission/approval, React admin UI | planned |
