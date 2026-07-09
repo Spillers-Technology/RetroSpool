@@ -27,6 +27,12 @@ and starts the full stack. Prefer a plain jar (bring your own Java 21)? Every
 [release](https://github.com/Spillers-Technology/RetroSpool/releases) ships a zip with
 a SHA-256 checksum. **[QUICKSTART.md](QUICKSTART.md)** walks through both paths.
 
+Or, for those who like to live dangerously:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/main/quickstart/get.sh | bash
+```
+
 ## What it does
 
 ```

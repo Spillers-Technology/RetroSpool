@@ -29,6 +29,13 @@ This pulls RetroSpool from `ghcr.io/spillers-technology/retrospool` and starts
 everything it needs (PostgreSQL, object storage, the PDF renderer) — all internal,
 nothing exposed except the API on port 8080.
 
+Like to live dangerously? The same thing as one line, with a health-check wait and
+friendlier output ([read it first](quickstart/get.sh), it's short):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/main/quickstart/get.sh | bash
+```
+
 > ☕ **The first start takes a few minutes** — it compiles the PCL→PDF renderer
 > (GhostPDL) from source on your machine. That's a deliberate licensing choice, not an
 > accident: the renderer is AGPL, so RetroSpool ships it as source and never as a
