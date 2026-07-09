@@ -82,7 +82,7 @@ docker run --rm \
   gradle:8.10.2-jdk21 gradle integrationTest --no-daemon --console=plain
 
 # Run the app jar against Postgres (DB_URL/DB_USER/DB_PASSWORD env)
-java -jar build/libs/retrospool-0.0.2.jar
+java -jar build/libs/retrospool-0.0.3.jar
 # or build the production image:
 docker build -t retrospool .
 ```
@@ -92,19 +92,24 @@ Endpoints: `GET /api/health`, `GET /actuator/health`, `POST /api/connection/test
 
 ## Releasing
 
-1. Bump `version` in `build.gradle.kts`, update `CHANGELOG.md`, commit to `main`.
+1. Bump `version` in `build.gradle.kts`; bump the image tag and git ref pins in
+   `quickstart/docker-compose.yml` and the version references in `QUICKSTART.md` /
+   `README.md`; update `CHANGELOG.md`. Commit to `main`.
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. The `release` workflow builds in CI (unit tests + `licenseGate`), assembles
-   `retrospool-X.Y.Z.zip` (jar, `docker-compose.yml`, render-sidecar source, docs)
-   with a `.sha256` checksum, and attaches both to the GitHub release — creating a
-   **draft** release if the tag doesn't have one yet. Write the release notes, then
-   publish the draft.
+3. The `release` workflow builds in CI (unit tests + `licenseGate`), then:
+   - assembles `retrospool-X.Y.Z.zip` (jar, compose file, quickstart doc,
+     render-sidecar source, docs) with a `.sha256` checksum and attaches both to the
+     GitHub release — creating a **draft** release if the tag doesn't have one yet;
+   - publishes the app image to `ghcr.io/spillers-technology/retrospool`
+     (`X.Y.Z` + `latest`).
+4. Write the release notes, then publish the draft.
 
 To rebuild assets for an existing tag, dispatch the workflow manually:
 `gh workflow run release.yml -f tag=vX.Y.Z`.
 
-Only source and the built jar ship in the zip; GhostPDL is never distributed as a
-binary — end users build the sidecar container from the included source (D-018).
+Only source and the built jar ship in the zip, and only the app image goes to GHCR;
+GhostPDL is never distributed as a binary — end users build the sidecar container
+from source (D-018, D-020).
 
 ## Conventions
 

@@ -1,0 +1,79 @@
+# RetroSpool quickstart — the whole stack, one command:
+#
+#   docker compose up -d
+#
+# Pulls the app from ghcr.io and runs everything it needs. The only port opened on
+# your machine is 8080 (the RetroSpool API). The first start compiles the PCL->PDF
+# renderer from source (a few minutes, one time) — that's deliberate: the renderer
+# is AGPL GhostPDL, which this project ships as source, never as a binary.
+#
+# See QUICKSTART.md in the repo for what to do next:
+# https://github.com/Spillers-Technology/RetroSpool/blob/main/QUICKSTART.md
+
+services:
+  retrospool:
+    image: ghcr.io/spillers-technology/retrospool:0.0.3
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/spoolgateway
+      DB_USER: spool
+      DB_PASSWORD: spool
+      RENDER_URL: http://render-sidecar:8080
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_PATH_STYLE: "true"
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_BUCKET: spool-landing
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: spoolgateway
+      POSTGRES_USER: spool
+      POSTGRES_PASSWORD: spool
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spool -d spoolgateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Landing object store for captured spool files (S3 API, internal only).
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+
+  # One-shot: create the landing bucket, then exit.
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb --ignore-existing local/spool-landing
+      "
+
+  # PCL->PDF renderer: unmodified GhostPDL (gpcl6) behind a tiny HTTP shim, built
+  # from this tag's source on your machine (AGPL is never distributed as a binary
+  # or linked into the JVM — docs/decisions.md D-018/D-020).
+  render-sidecar:
+    build: https://github.com/Spillers-Technology/RetroSpool.git#v0.0.3:render-sidecar
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:

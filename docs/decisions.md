@@ -171,3 +171,19 @@ Git history was **restarted** for the public debut (pre-public commits contained
 branding throughout). The evolution is preserved on purpose in two public artifacts:
 [CHANGELOG.md](../CHANGELOG.md) and this decision log — append-only, including superseded
 decisions.
+
+### D-020 — Distribution: GHCR app image + CI-built zip; the sidecar ships as source only
+**Accepted** · 2026-07-08
+End users get two channels, both produced by the `release` workflow on every `v*` tag
+(after unit tests + `licenseGate` pass):
+- **`ghcr.io/spillers-technology/retrospool`** — the app container image (linux/amd64),
+  tagged with the version and `latest`.
+- **`retrospool-x.y.z.zip`** + `.sha256` — runnable fat jar, compose file,
+  render-sidecar source, and docs, attached to the GitHub release.
+
+The **render sidecar image is never published**. Distributing a `gpcl6` binary would
+take on AGPL corresponding-source obligations and soften the D-018 posture for no real
+gain; instead `quickstart/docker-compose.yml` builds it on the user's machine from the
+pinned tag's `render-sidecar/` directory via a remote git build context — still a single
+`docker compose up`, still build-from-source. The quickstart compose pins both the image
+tag and the git ref; bumping them is part of the release checklist (CONTRIBUTING.md).

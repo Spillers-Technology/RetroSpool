@@ -13,6 +13,20 @@ Retrospool replaces that with a headless web service: the host queues spool file
 `*READY` whether or not any device is online, so the service just **polls the queue
 via [JTOpen](https://github.com/IBM/JTOpen)**, reads the bytes, and takes it from there.
 
+## Get started
+
+```bash
+mkdir retrospool && cd retrospool
+curl -fsSLO https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/v0.0.3/quickstart/docker-compose.yml
+docker compose up -d
+curl http://localhost:8080/api/health
+```
+
+That pulls the app from **[ghcr.io/spillers-technology/retrospool](https://github.com/Spillers-Technology/RetroSpool/pkgs/container/retrospool)**
+and starts the full stack. Prefer a plain jar (bring your own Java 21)? Every
+[release](https://github.com/Spillers-Technology/RetroSpool/releases) ships a zip with
+a SHA-256 checksum. **[QUICKSTART.md](QUICKSTART.md)** walks through both paths.
+
 ## What it does
 
 ```
@@ -62,7 +76,7 @@ AWS SDK v2 (S3 landing store) · GhostPDL (sidecar container only) · Docker end
 (the dev machine needs no JDK). The SFTP/FTPS exporters (MINA SSHD, Commons Net) and the
 React 18 + Vite admin UI are declared/designed but not yet wired — see Status.
 
-## Run it
+## Build it yourself
 
 ```bash
 # local dependencies: Postgres 16, MinIO, and the PCL render sidecar
@@ -73,7 +87,7 @@ docker run --rm -v "$PWD:/app" -w /app -v spool-gradle-cache:/home/gradle/.gradl
   gradle:8.10.2-jdk21 gradle build --no-daemon
 
 # run
-java -jar build/libs/retrospool-0.0.2.jar
+java -jar build/libs/retrospool-0.0.3.jar
 ```
 
 Integration tests (Testcontainers: real Postgres, MinIO, and the actual gpcl6
@@ -89,7 +103,7 @@ Architecture, data model, the phased plan, and an append-only decision log live 
 
 ## Status
 
-**v0.0.2 — pre-1.0.** Phases 0–3 are **complete and verified**; phases 4–7 are designed
+**v0.0.3 — pre-1.0.** Phases 0–3 are **complete and verified**; phases 4–7 are designed
 but not yet built.
 
 | Capability | State |

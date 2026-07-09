@@ -11,6 +11,26 @@ All notable changes to retrospool are documented here. The format follows
 > ([docs/decisions.md](docs/decisions.md), D-001 onward), which records every
 > architectural decision — including the ones that were later superseded and why.
 
+## [0.0.3] — 2026-07-08
+
+### Added
+- **Container image on GHCR** (D-020): the release workflow now publishes
+  `ghcr.io/spillers-technology/retrospool` on every tag, after unit tests and the
+  `licenseGate` pass. App image only — the GhostPDL render sidecar is deliberately
+  never published as a binary; end users build it from the tag's source.
+- **Quickstart** ([QUICKSTART.md](QUICKSTART.md) + `quickstart/docker-compose.yml`):
+  the whole stack from one downloaded file and one `docker compose up` — app from
+  GHCR, internal Postgres/MinIO (no host-port collisions), render sidecar built
+  from the pinned tag's git context. Jar path documented with Temurin install
+  guidance and checksum verification.
+- **Release assets**: each release ships `retrospool-x.y.z.zip` (runnable jar,
+  compose file, render-sidecar source, docs) plus a `.sha256` checksum, built and
+  attached by CI (also backfilled onto v0.0.2).
+
+### Changed
+- README leads with a producty "Get started" path; the containerized build
+  instructions moved under "Build it yourself".
+
 ## [0.0.2] — 2026-07-02
 
 ### Added
