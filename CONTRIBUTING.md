@@ -90,6 +90,22 @@ docker build -t retrospool .
 Endpoints: `GET /api/health`, `GET /actuator/health`, `POST /api/connection/test`
 (`{host, username, password, useSsl}` → pass/fail + reason).
 
+## Releasing
+
+1. Bump `version` in `build.gradle.kts`, update `CHANGELOG.md`, commit to `main`.
+2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The `release` workflow builds in CI (unit tests + `licenseGate`), assembles
+   `retrospool-X.Y.Z.zip` (jar, `docker-compose.yml`, render-sidecar source, docs)
+   with a `.sha256` checksum, and attaches both to the GitHub release — creating a
+   **draft** release if the tag doesn't have one yet. Write the release notes, then
+   publish the draft.
+
+To rebuild assets for an existing tag, dispatch the workflow manually:
+`gh workflow run release.yml -f tag=vX.Y.Z`.
+
+Only source and the built jar ship in the zip; GhostPDL is never distributed as a
+binary — end users build the sidecar container from the included source (D-018).
+
 ## Conventions
 
 - Temp/scratch files go in the session scratchpad, never in the repo.
