@@ -192,6 +192,7 @@
     font-size: .85rem;
   }
 </style>
+<link rel="stylesheet" href="assets/lightbox.css">
 <!-- OpenReplay Tracking Code (replay.spillerstech.us) -->
 <script>
   var initOpts = {
@@ -318,7 +319,9 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
     </p>
     <div class="shots">
       <figure>
-        <img src="assets/capture-pipeline.png" alt="A PCL statement rendered to PDF beside its tenant-scoped capture record, showing detectedFormat PCL, sha256, storage keys, and renderStatus SUCCESS.">
+        <button class="lightbox-trigger" type="button" data-lightbox>
+          <img src="assets/capture-pipeline.png" alt="A PCL statement rendered to PDF beside its tenant-scoped capture record, showing detectedFormat PCL, sha256, storage keys, and renderStatus SUCCESS.">
+        </button>
         <figcaption>
           <b>Capture pipeline</b> — a concatenated PCL spool file sniffed, split, stored
           as <code>.pcl</code>, and rendered to a <code>.pdf</code> sibling via the GhostPDL
@@ -326,7 +329,9 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
         </figcaption>
       </figure>
       <figure>
-        <img src="assets/test-connection.png" alt="curl POST to /api/connection/test returning a TestConnectionResult with success true, code OK, and elapsedMillis, plus a /api/health check.">
+        <button class="lightbox-trigger" type="button" data-lightbox>
+          <img src="assets/test-connection.png" alt="curl POST to /api/connection/test returning a TestConnectionResult with success true, code OK, and elapsedMillis, plus a /api/health check.">
+        </button>
         <figcaption>
           <b>Test Connection</b> — the synchronous JTOpen signon endpoint
           (<code>POST /api/connection/test</code>) returning the real pass/fail result
@@ -334,7 +339,9 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
         </figcaption>
       </figure>
       <figure>
-        <img src="assets/format-detection.png" alt="Format detection table mapping byte signatures like %PDF- and ESC E to PDF, PCL, TEXT, and UNKNOWN with their handling.">
+        <button class="lightbox-trigger" type="button" data-lightbox>
+          <img src="assets/format-detection.png" alt="Format detection table mapping byte signatures like %PDF- and ESC E to PDF, PCL, TEXT, and UNKNOWN with their handling.">
+        </button>
         <figcaption>
           <b>Format detection</b> — how the sniffer maps the first 16 bytes to
           PDF / PCL / TEXT / UNKNOWN, and where concatenated PCL is split.
@@ -395,5 +402,6 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
     printed on simulated greenbar &middot; no printer sessions were harmed
   </footer>
 </main>
+<script src="assets/lightbox.js"></script>
 </body>
 </html>
