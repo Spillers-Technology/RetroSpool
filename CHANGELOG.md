@@ -11,6 +11,47 @@ All notable changes to retrospool are documented here. The format follows
 > ([docs/decisions.md](docs/decisions.md), D-001 onward), which records every
 > architectural decision — including the ones that were later superseded and why.
 
+## [0.2.0] — 2026-07-12
+
+### Added
+- **Public submission intake** (D-024), the low-trust half of the two-surface model
+  (D-007) that D-021 left planned:
+  - `WsHodParser` — imports an IBM Personal Communications `.ws` (INI) or Host On-Demand
+    session file (applet `<PARAM>`s or flat properties) into a normalized draft: host,
+    port, TLS posture, user, LU/device, CCSID, session type. Tolerant by design — a
+    partial or unrecognized file yields a draft with warnings, not an error.
+  - Two anonymous, CSRF-exempt routes on the low-trust surface (same posture as Test
+    Connection): `POST /api/submissions/parse` (upload → draft, nothing persisted) and
+    `POST /api/submissions` (create a **pending** submission). Path-exact security so the
+    admin approve/reject routes stay authenticated. Neither creates a tenant.
+  - A **standalone** `/submit` React page: upload → review/edit → Test Connection →
+    submit → confirmation, served outside the admin identity gate.
+- **Encrypted secret store** (D-023): a `secret` table (V3 migration) holding AES-256-GCM
+  envelopes, giving the submission surface a *write* path for submitter-entered passwords
+  that the env-var resolver (D-012) lacked. `CompositeSecretResolver` routes `db:<uuid>`
+  refs to the encrypted store and env-var refs to the existing resolver behind one
+  `SecretResolver`. Key from `gateway.secrets.encryption-key` (base64 32-byte key or a
+  passphrase); blank leaves the store disabled and the app still boots.
+- **Approval now provisions destinations**: an approved submission that carried an SFTP
+  destination creates the `export_destination` row with its write-only secret ref, and
+  carries `port`/`ccsid` onto the tenant — closing the destination/secret-promotion item
+  D-021 left open.
+- Focused tests: `.ws`/HOD parsing across PComm and HOD shapes; GCM round-trip / tamper /
+  wrong-key / passphrase-derivation; composite resolver routing; DB store write→resolve;
+  intake draft-JSON + write-only secret handling; anonymous + CSRF-exempt intake routes;
+  SFTP-destination promotion on approval.
+
+### Changed
+- Version advanced to `0.2.0`; quickstart compose image tag and render-sidecar git ref
+  bumped to `v0.2.0`.
+- `SubmissionApprovalService` gained an `ExportDestinationRepository` dependency to
+  provision destinations on approval.
+
+### Not yet included
+- Scheduled IBM i queue polling (Phase 4) and S3/SFTP/FTPS export execution (Phase 5)
+  remain planned and gated on live host credentials (D-011). 1.0.0 awaits that first real
+  IBM i validation.
+
 ## [0.1.0] — 2026-07-12
 
 ### Added

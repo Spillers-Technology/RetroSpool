@@ -104,6 +104,56 @@ export interface TenantDetail {
   recentAudit: AuditEventView[];
 }
 
+// Public submission intake (D-007). Mirrors io.retrospool.submission.ParsedDraft
+// and io.retrospool.api.IntakeDtos.
+
+export interface ParsedSession {
+  host: string | null;
+  port: number | null;
+  useSsl: boolean;
+  username: string | null;
+  name: string | null;
+  deviceName: string | null;
+  ccsid: number | null;
+  sessionType: string | null;
+  sourceFormat: string;
+  warnings: string[];
+}
+
+export interface DraftInput {
+  host: string;
+  port?: number | null;
+  useSsl: boolean;
+  username: string;
+  name?: string | null;
+  deviceName?: string | null;
+  ccsid?: number | null;
+  sessionType?: string | null;
+}
+
+export interface SftpDestinationInput {
+  name: string;
+  host: string;
+  port?: number | null;
+  username: string;
+  remotePath: string;
+  hostKeyFingerprint?: string | null;
+  password?: string | null;
+}
+
+export interface SubmissionRequest {
+  draft: DraftInput;
+  ibmiPassword?: string | null;
+  sftpDestination?: SftpDestinationInput | null;
+}
+
+export interface SubmissionCreatedResponse {
+  id: string;
+  status: string;
+  ibmiPasswordStored: boolean;
+  sftpDestinationConfigured: boolean;
+}
+
 export interface TestConnectionRequest {
   host: string;
   username: string;

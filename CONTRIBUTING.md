@@ -82,7 +82,7 @@ docker run --rm \
   gradle:8.10.2-jdk21 gradle integrationTest --no-daemon --console=plain
 
 # Run the app jar against Postgres (DB_URL/DB_USER/DB_PASSWORD env)
-java -jar build/libs/retrospool-0.1.0.jar --retrospool.admin.dev-user=local-admin
+java -jar build/libs/retrospool-0.2.0.jar --retrospool.admin.dev-user=local-admin
 # or build the production image:
 docker build -t retrospool .
 ```
@@ -92,9 +92,9 @@ Endpoints: `GET /api/health`, `GET /actuator/health`, `POST /api/connection/test
 
 ## Releasing
 
-1. Bump `version` in `build.gradle.kts`; bump the image tag and git ref pins in
-   `quickstart/docker-compose.yml` and the version references in `QUICKSTART.md` /
-   `README.md`; update `CHANGELOG.md`. Commit to `main`.
+1. Bump `version` in `build.gradle.kts` and `frontend/package.json`; bump the image tag
+   and git ref pins in `quickstart/docker-compose.yml` and the version references in
+   `QUICKSTART.md` / `README.md`; update `CHANGELOG.md`. Commit to `main`.
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 3. The `release` workflow builds in CI (unit tests + `licenseGate`), then:
    - assembles `retrospool-X.Y.Z.zip` (jar, compose file, quickstart doc,

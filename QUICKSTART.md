@@ -6,11 +6,12 @@ an ACS session — and turns spool files into PDFs.
 
 Two ways to run it. If you have Docker, use Docker — it's one file and one command.
 
-> **Where the project is today (v0.1.0, pre-1.0):** the capture engine — format
+> **Where the project is today (v0.2.0, pre-1.0):** the capture engine — format
 > sniffing, PCL splitting, PCL→PDF rendering, tenant-scoped storage — is built and
-> verified end-to-end, and the authenticated admin console now covers submissions,
-> tenants, captures, and Test Connection. The scheduled queue poller, export fan-out
-> (S3/SFTP/FTPS), and public HOD intake remain planned — see the
+> verified end-to-end; the authenticated admin console covers submissions, tenants,
+> captures, and Test Connection; and the **public HOD/WS submission intake** (upload a
+> session file at `/submit`, review, submit for approval) now ships too. The scheduled
+> queue poller and export fan-out (S3/SFTP/FTPS) remain planned — see the
 > [roadmap](README.md#status). Kick the tires now; don't point it at production quite yet.
 
 ---
@@ -21,7 +22,7 @@ You need: [Docker](https://docs.docker.com/get-docker/) with Compose. That's it.
 
 ```bash
 mkdir retrospool && cd retrospool
-curl -fsSLO https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/v0.1.0/quickstart/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/v0.2.0/quickstart/docker-compose.yml
 docker compose up -d
 ```
 
@@ -78,18 +79,18 @@ have to read a lawyer's opinion on. Temurin means you never have to think about 
 
 ```bash
 # 1. Download the zip and its checksum from the releases page, then verify:
-sha256sum -c retrospool-0.1.0.zip.sha256        # Linux
-shasum -a 256 -c retrospool-0.1.0.zip.sha256    # macOS
+sha256sum -c retrospool-0.2.0.zip.sha256        # Linux
+shasum -a 256 -c retrospool-0.2.0.zip.sha256    # macOS
 # Windows (PowerShell): compare the two outputs
-#   Get-FileHash retrospool-0.1.0.zip; Get-Content retrospool-0.1.0.zip.sha256
+#   Get-FileHash retrospool-0.2.0.zip; Get-Content retrospool-0.2.0.zip.sha256
 
 # 2. Unzip. The bundle includes a docker-compose.yml for the supporting services
 #    (PostgreSQL, MinIO, and the PDF renderer built from the bundled source):
-cd retrospool-0.1.0
+cd retrospool-0.2.0
 docker compose up -d
 
 # 3. Run it:
-java -jar retrospool-0.1.0.jar --retrospool.admin.dev-user=local-admin
+java -jar retrospool-0.2.0.jar --retrospool.admin.dev-user=local-admin
 ```
 
 The app reads its configuration from environment variables — `DB_URL`, `DB_USER`,

@@ -286,7 +286,7 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
   </section>
 
   <section>
-    <h2>What works today <span class="tag shipped">v0.1.0 · verified</span></h2>
+    <h2>What works today <span class="tag shipped">v0.2.0 · verified</span></h2>
     <p style="font-size:.9rem; color:var(--ink-soft); margin-top:0">
       The backend is exercised by unit + Testcontainers integration tests against real
       Postgres, MinIO, and the actual <code>gpcl6</code> sidecar. The production frontend
@@ -394,9 +394,10 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
   <section id="status">
     <h2>Status</h2>
     <p>
-      <strong>v0.1.0</strong> — pre-1.0 and honest about it. The capture-and-render core,
-      authenticated admin API, and React operator console are delivered. Live queue polling,
-      export fan-out, and the public HOD intake surface remain next.
+      <strong>v0.2.0</strong> — pre-1.0 and honest about it. The capture-and-render core,
+      authenticated admin API, React operator console, and the public HOD/WS submission
+      intake are delivered. Live queue polling and export fan-out remain next — both gated
+      on a real IBM i host, which is also what 1.0.0 waits on.
     </p>
     <ul class="grid">
       <li><b>Connection layer <span class="tag shipped">shipped</span></b>TLS signon via

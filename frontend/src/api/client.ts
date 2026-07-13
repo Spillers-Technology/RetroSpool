@@ -54,10 +54,30 @@ function readCookie(name: string): string | null {
   return null;
 }
 
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  // Multipart upload: let the browser set Content-Type (with boundary). The public
+  // intake routes are CSRF-exempt (D-007), so no token is echoed here.
+  const res = await fetch(path, { method: "POST", body: form, headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = await res.json();
+      if (body && typeof body.message === "string") message = body.message;
+    } catch {
+      // keep status text
+    }
+    throw new ApiError(res.status, message);
+  }
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) return undefined as T;
+  return (await res.json()) as T;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
+  postForm: <T>(path: string, form: FormData) => requestForm<T>(path, form),
 };
 
 /** Direct browser URL for a capture artifact (opened in a new tab, not fetched). */

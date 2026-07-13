@@ -37,6 +37,11 @@ gateway:
     path-style-access: ${STORAGE_PATH_STYLE:false}
     access-key: ${STORAGE_ACCESS_KEY:}
     secret-key: ${STORAGE_SECRET_KEY:}
+  # Encrypted secret store (D-023). Base64 32-byte AES key (or any passphrase, which is
+  # SHA-256'd). Empty = the DB secret store is disabled and submitter-entered passwords
+  # cannot be accepted at intake; env-var secret_refs (D-012) still resolve.
+  secrets:
+    encryption-key: ${SECRET_ENCRYPTION_KEY:}
   # GhostPDL render sidecar (D-018). Empty URL = renderer not configured; PCL
   # captures then land with render_status=FAILED and are retryable later.
   render:

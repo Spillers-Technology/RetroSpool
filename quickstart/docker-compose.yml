@@ -12,7 +12,7 @@
 
 services:
   retrospool:
-    image: ghcr.io/spillers-technology/retrospool:0.1.0
+    image: ghcr.io/spillers-technology/retrospool:0.2.0
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"
@@ -74,7 +74,7 @@ services:
   # from this tag's source on your machine (AGPL is never distributed as a binary
   # or linked into the JVM — docs/decisions.md D-018/D-020).
   render-sidecar:
-    build: https://github.com/Spillers-Technology/RetroSpool.git#v0.1.0:render-sidecar
+    build: https://github.com/Spillers-Technology/RetroSpool.git#v0.2.0:render-sidecar
     restart: unless-stopped
 
 volumes:

@@ -26,7 +26,10 @@ class TenantIsolationGateTest {
             CaptureRepository.class,
             ExportDestinationRepository.class,
             ExportAttemptRepository.class,
-            AuditEventRepository.class);
+            AuditEventRepository.class,
+            // Not tenant-scoped: encrypted secrets are written by the pre-tenant
+            // submission surface (D-023). No tenantId field, so the shape check skips it.
+            io.retrospool.secrets.StoredSecretRepository.class);
 
     @Test
     void everyQueryMethodOnTenantScopedEntitiesTakesTenantId() {

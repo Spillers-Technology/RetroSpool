@@ -232,3 +232,53 @@ excluded from CSRF enforcement.
 Local development may set `retrospool.admin.dev-user` to synthesize an admin identity
 when forwarded headers are absent. The default is blank, and production deployments
 must never enable it.
+
+### D-023 — Encrypted database secret store adds a *write* path (extends D-012)
+**Accepted** · 2026-07-12 · additive to D-012
+The public submission surface (D-007) must **collect** an IBM i (and optional SFTP)
+password from an anonymous submitter and carry it forward as a write-only `secret_ref`
+(D-010/D-012). But the only `SecretResolver` impl was env-var-backed and **read-only** —
+there was no way to persist a runtime-entered secret. D-012 already anticipated
+"additive later" backends (it named Vault); this is that step, chosen smaller than Vault:
+- A `secret` table (V3 migration) stores each secret as an **AES-256-GCM** envelope
+  (`nonce || ciphertext || tag`), meaningless without the key. Addressed as `db:<uuid>`.
+- `SecretCipher` takes the key from `gateway.secrets.encryption-key` (a base64 32-byte
+  key, or any passphrase, which is SHA-256'd). **Blank ⇒ the store is disabled** and the
+  app still boots; only submitter-password intake is refused (with a clear 503) until a
+  key is set. Env-var `secret_ref`s (D-012) keep resolving regardless.
+- `CompositeSecretResolver` (`@Primary`) routes `db:` refs to the encrypted store and
+  everything else to the env-var resolver, so the pipeline still injects one
+  `SecretResolver`. Values remain write-only at every API (D-012): no endpoint returns
+  them; only "set / not set" is exposed.
+
+*Why not plaintext or env-only:* env-only can't accept a submitter's password at runtime;
+plaintext-at-rest is a regression. GCM gives confidentiality **and** tamper detection at
+rest, keeps the D-012 posture, and stays a single additive component. The `secret` table
+is not tenant-scoped (secrets predate tenants, like `submission`), so it is registered as
+an explicit exemption in the D-008 isolation gate.
+
+### D-024 — Public submission intake: WS/HOD import + standalone page (completes Phase 6.5/7)
+**Accepted** · 2026-07-12
+D-021 shipped the credentialed admin review side but left the **public** half of the
+two-surface model (D-007) planned. This delivers it:
+- `WsHodParser` reads an IBM **Personal Communications `.ws`** (INI) or **Host On-Demand**
+  session file (applet `<PARAM>`s or flat properties) into a normalized `ParsedDraft`
+  (host, port, TLS posture, user, LU/device, CCSID, session type) with **warnings** rather
+  than exceptions — the submitter reviews and completes it. Session files never carry the
+  IBM i password (D-010), so the parser never looks for one.
+- Two **anonymous, CSRF-exempt** routes on the low-trust surface (`io.retrospool.api`,
+  same posture as `POST /api/connection/test`), matched **path-exact** so the admin
+  `.../{id}/approve|reject` routes stay authenticated: `POST /api/submissions/parse`
+  (upload → draft, nothing persisted) and `POST /api/submissions` (create a **pending**
+  submission). Neither creates a tenant — approval remains the mandatory human gate.
+- Submitter-entered passwords are persisted write-only via the D-023 store; the draft JSON
+  and every response omit them. The optional SFTP destination is carried in the draft and,
+  on approval, provisioned as an `export_destination` row with its secret ref — closing
+  the "destination/secret promotion" item D-021 left open. Approval also carries `port`
+  and `ccsid` onto the tenant.
+- A **standalone** React page at `/submit`, switched in by path *before* the admin
+  identity gate (`useMe`) runs, so it needs no Authentik identity. Upload → review/edit →
+  Test Connection (ephemeral) → submit → confirmation.
+
+This does **not** advance the poller or export execution (Phases 4–5), which remain gated
+on live IBM i creds (D-011). 1.0.0 still awaits that first real host validation.

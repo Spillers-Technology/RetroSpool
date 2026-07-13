@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.retrospool.persistence.AuditEvent;
 import io.retrospool.persistence.AuditEventRepository;
+import io.retrospool.persistence.ExportDestination;
+import io.retrospool.persistence.ExportDestinationRepository;
 import io.retrospool.persistence.Submission;
 import io.retrospool.persistence.SubmissionRepository;
 import io.retrospool.persistence.SubmissionStatus;
@@ -34,6 +36,9 @@ class SubmissionApprovalServiceTest {
     private TenantRepository tenants;
 
     @Mock
+    private ExportDestinationRepository destinations;
+
+    @Mock
     private AuditEventRepository audit;
 
     private ObjectMapper mapper;
@@ -42,7 +47,7 @@ class SubmissionApprovalServiceTest {
     @BeforeEach
     void setUp() {
         mapper = new ObjectMapper();
-        service = new SubmissionApprovalService(submissions, tenants, audit, mapper);
+        service = new SubmissionApprovalService(submissions, tenants, destinations, audit, mapper);
     }
 
     @Test
@@ -80,6 +85,38 @@ class SubmissionApprovalServiceTest {
                 .isEqualTo(submission.getId().toString());
         assertThat(mapper.readTree(event.getPayload()).get("reviewedBy").asText())
                 .isEqualTo("reviewer@example.com");
+    }
+
+    @Test
+    void approveProvisionsSftpDestinationCarryingItsSecretAndCarriesPortCcsid() throws Exception {
+        Submission submission = new Submission("""
+                {"host":"pub400.com","username":"QUSER","name":"Acme","useSsl":true,
+                 "port":9476,"ccsid":37,
+                 "sftpDestination":{"name":"Downstream","host":"sftp.example.com","port":22,
+                    "username":"svc","remotePath":"/in/reports","hostKeyFingerprint":"SHA256:abc"}}
+                """);
+        submission.setSftpPasswordRef("db:33333333-3333-3333-3333-333333333333");
+        when(submissions.findByIdForUpdate(submission.getId())).thenReturn(Optional.of(submission));
+        when(tenants.save(any(Tenant.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(destinations.save(any(ExportDestination.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(submissions.save(any(Submission.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(audit.save(any(AuditEvent.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Tenant tenant = service.approve(submission.getId(), "reviewer");
+
+        assertThat(tenant.getPort()).isEqualTo(9476);
+        assertThat(tenant.getCcsid()).isEqualTo(37);
+
+        ArgumentCaptor<ExportDestination> destCaptor = ArgumentCaptor.forClass(ExportDestination.class);
+        verify(destinations).save(destCaptor.capture());
+        ExportDestination destination = destCaptor.getValue();
+        assertThat(destination.getTenantId()).isEqualTo(tenant.getId());
+        assertThat(destination.getType().name()).isEqualTo("SFTP");
+        assertThat(destination.getName()).isEqualTo("Downstream");
+        assertThat(destination.getSecretRef()).isEqualTo("db:33333333-3333-3333-3333-333333333333");
+        assertThat(mapper.readTree(destination.getConfig()).get("host").asText()).isEqualTo("sftp.example.com");
+        assertThat(mapper.readTree(destination.getConfig()).get("remotePath").asText()).isEqualTo("/in/reports");
+        assertThat(destination.getConfig()).doesNotContain("33333333");
     }
 
     @Test

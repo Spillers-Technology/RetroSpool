@@ -8,8 +8,10 @@
 
 - All capture/export/audit rows are **tenant-scoped**. Every query filters by `tenant_id`.
 - **Dedup is within-tenant only.** Identical bytes for two companies = two captures.
-- Secrets are never stored inline. Columns ending in `_ref` hold an indirection
-  (env var name now; Vault path later), resolved by `SecretResolver`. Write-only at the API.
+- Secrets are never stored inline. Columns ending in `_ref` hold an indirection,
+  resolved by `SecretResolver`. Two ref shapes (D-023): an **env var name** (operator
+  pre-provisioned, D-012) or **`db:<uuid>`** (a submitter-entered password encrypted in
+  the `secret` table). Write-only at the API — never read back.
 
 ## Tables
 
@@ -60,11 +62,10 @@ submission (
   resulting_tenant_id uuid         -- set on approval
 );
 ```
-The completed submission flow will copy the draft + secrets into `tenant` and
-`export_destination`. In v0.1.0, approval creates the tenant and carries its IBM i
-secret reference; destination creation and SFTP-secret promotion remain part of the
-planned public intake slice. Nothing auto-activates; approval is the mandatory
-human-review gate.
+Approval copies the draft + secrets into `tenant` and `export_destination`: it creates the
+tenant (connection fields incl. `port`/`ccsid`), carries the IBM i secret reference, and —
+as of v0.2.0 (D-024) — creates an `export_destination` row with its SFTP secret when the
+submission carried one. Nothing auto-activates; approval is the mandatory human-review gate.
 
 ### spool_watermark
 ```sql
@@ -146,6 +147,20 @@ audit_event (
 );
 ```
 
+### secret  (V3 — encrypted secret store, D-023)
+```sql
+secret (
+  id uuid pk,
+  material bytea,                 -- AES-256-GCM envelope: nonce(12) || ciphertext || tag(16)
+  created_at timestamptz
+);
+```
+Written by the pre-tenant submission surface (D-007) for submitter-entered passwords, so
+**not tenant-scoped** (like `submission`). Referenced as `db:<id>`; key from
+`gateway.secrets.encryption-key`. Meaningless without the key; never returned by any API.
+The `submission.parsed_draft` may also carry an optional `sftpDestination` object
+(config only, no password), which approval turns into an `export_destination` row.
+
 ## Deltas from the original handoff schema
 
 - Added `tenant.printer_device_name` (HOD LU/device, informational).
@@ -153,3 +168,5 @@ audit_event (
 - Added `submission` table for the landing-vs-admin two-surface lifecycle, carrying
   write-only IBM i + SFTP password refs through approval.
 - Clarified `export_destination.secret_ref` as SFTP **password** (not key) per decision.
+- Added the `secret` table (V3) for encrypted, submitter-entered passwords (D-023),
+  giving `_ref` columns a `db:<uuid>` shape alongside env-var names.

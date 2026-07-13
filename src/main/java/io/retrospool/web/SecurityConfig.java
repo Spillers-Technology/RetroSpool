@@ -25,8 +25,10 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
  * <ul>
  *   <li>{@code /api/health}, {@code /actuator/health} — open, for k8s probes that
  *       hit the pod directly and never carry outpost headers.</li>
- *   <li>{@code POST /api/connection/test} — open as part of the low-trust
- *       submission surface (D-007).</li>
+ *   <li>{@code POST /api/connection/test}, {@code POST /api/submissions/parse}, and
+ *       {@code POST /api/submissions} — open as the low-trust public submission surface
+ *       (D-007). Matched by exact path so the admin approve/reject routes under
+ *       {@code /api/submissions/{id}/…} stay authenticated.</li>
  *   <li>all other {@code /api/**} routes — require an authenticated admin and
  *       return 401 (not a redirect) so the SPA can react.</li>
  *   <li>everything else (the built SPA: index.html, assets) — served freely; the
@@ -43,7 +45,7 @@ public class SecurityConfig {
         AuthentikHeaderAuthenticationFilter headerFilter = new AuthentikHeaderAuthenticationFilter(devUser);
         CookieCsrfTokenRepository csrfRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
-        RequestMatcher publicConnectionTest = SecurityConfig::isPublicConnectionTest;
+        RequestMatcher publicSubmissionSurface = SecurityConfig::isPublicSubmissionSurface;
 
         http
                 .csrf(csrf -> csrf
@@ -53,15 +55,16 @@ public class SecurityConfig {
                         .csrfTokenRequestHandler(csrfRequestHandler)
                         // D-007: retain the standalone submission page's curl/browser
                         // contract without opening any authenticated admin mutation.
-                        .ignoringRequestMatchers(publicConnectionTest))
+                        .ignoringRequestMatchers(publicSubmissionSurface))
                 .cors(cors -> cors.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/actuator/health", "/actuator/health/**").permitAll()
-                        // D-007: Test Connection belongs to the low-trust submission surface.
-                        // Keep the exception method- and path-specific so no admin read or
-                        // approval endpoint becomes reachable without an Authentik identity.
-                        .requestMatchers(publicConnectionTest).permitAll()
+                        // D-007: the public submission surface (upload/parse, submit,
+                        // Test Connection) is anonymous. Kept method- and path-specific so
+                        // no admin read or approval endpoint becomes reachable without an
+                        // Authentik identity.
+                        .requestMatchers(publicSubmissionSurface).permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())
                 .addFilterBefore(headerFilter, AnonymousAuthenticationFilter.class)
@@ -80,7 +83,15 @@ public class SecurityConfig {
         return http.build();
     }
 
-    private static boolean isPublicConnectionTest(HttpServletRequest request) {
+    // Exactly the low-trust submission surface (D-007). Path-exact and POST-only: the
+    // admin routes at /api/submissions/{id}/approve|reject have longer paths and never
+    // match here, so they still require an Authentik identity.
+    private static final java.util.Set<String> PUBLIC_POST_PATHS = java.util.Set.of(
+            "/api/connection/test",
+            "/api/submissions",
+            "/api/submissions/parse");
+
+    private static boolean isPublicSubmissionSurface(HttpServletRequest request) {
         if (!HttpMethod.POST.matches(request.getMethod())) {
             return false;
         }
@@ -89,6 +100,6 @@ public class SecurityConfig {
         if (!contextPath.isEmpty() && path.startsWith(contextPath)) {
             path = path.substring(contextPath.length());
         }
-        return "/api/connection/test".equals(path);
+        return PUBLIC_POST_PATHS.contains(path);
     }
 }

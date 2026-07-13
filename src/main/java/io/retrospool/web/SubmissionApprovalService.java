@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.retrospool.persistence.AuditEvent;
 import io.retrospool.persistence.AuditEventRepository;
+import io.retrospool.persistence.DestinationType;
+import io.retrospool.persistence.ExportDestination;
+import io.retrospool.persistence.ExportDestinationRepository;
 import io.retrospool.persistence.Submission;
 import io.retrospool.persistence.SubmissionRepository;
 import io.retrospool.persistence.SubmissionStatus;
@@ -28,16 +31,19 @@ public class SubmissionApprovalService {
 
     private final SubmissionRepository submissions;
     private final TenantRepository tenants;
+    private final ExportDestinationRepository destinations;
     private final AuditEventRepository audit;
     private final ObjectMapper mapper;
 
     public SubmissionApprovalService(
             SubmissionRepository submissions,
             TenantRepository tenants,
+            ExportDestinationRepository destinations,
             AuditEventRepository audit,
             ObjectMapper mapper) {
         this.submissions = submissions;
         this.tenants = tenants;
+        this.destinations = destinations;
         this.audit = audit;
         this.mapper = mapper;
     }
@@ -59,10 +65,17 @@ public class SubmissionApprovalService {
         Tenant tenant = new Tenant(name, host, username);
         tenant.setUseSsl(boolField(draft, true, "useSsl", "use_ssl", "ssl"));
         tenant.setPrinterDeviceName(text(draft, firstPresent(draft, "deviceName", "printerDeviceName", "device"), null));
+        Integer port = intField(draft, "port");
+        if (port != null) {
+            tenant.setPort(port);
+        }
+        tenant.setCcsid(intField(draft, "ccsid"));
         if (StringUtils.hasText(submission.getIbmiPasswordRef())) {
             tenant.setSecretRef(submission.getIbmiPasswordRef());
         }
         tenant = tenants.save(tenant);
+
+        maybeCreateSftpDestination(draft, submission, tenant);
 
         submission.approve(reviewedBy, tenant.getId());
         submissions.save(submission);
@@ -83,6 +96,42 @@ public class SubmissionApprovalService {
         submissions.save(submission);
         audit.save(new AuditEvent(null, "submission.rejected",
                 jsonPayload("submissionId", submissionId.toString(), "reviewedBy", reviewedBy)));
+    }
+
+    /**
+     * If the submission carried an SFTP destination in its draft (D-004/D-010), create
+     * the {@link ExportDestination} row on the new tenant and attach the write-only SFTP
+     * password ref collected at intake. Config-only draft fields go into {@code config};
+     * the password never appears there.
+     */
+    private void maybeCreateSftpDestination(JsonNode draft, Submission submission, Tenant tenant) {
+        JsonNode sftp = draft.get("sftpDestination");
+        if (sftp == null || !sftp.isObject() || !sftp.hasNonNull("host")) {
+            return;
+        }
+        String name = text(sftp, firstPresent(sftp, "name", "host"), "SFTP");
+        ObjectNode config = mapper.createObjectNode();
+        config.put("host", sftp.get("host").asText().trim());
+        config.put("port", sftp.hasNonNull("port") ? sftp.get("port").asInt() : 22);
+        if (sftp.hasNonNull("username")) {
+            config.put("username", sftp.get("username").asText().trim());
+        }
+        if (sftp.hasNonNull("remotePath")) {
+            config.put("remotePath", sftp.get("remotePath").asText().trim());
+        }
+        if (sftp.hasNonNull("hostKeyFingerprint")) {
+            config.put("hostKeyFingerprint", sftp.get("hostKeyFingerprint").asText().trim());
+        }
+
+        ExportDestination destination =
+                new ExportDestination(tenant.getId(), DestinationType.SFTP, name, config.toString());
+        if (StringUtils.hasText(submission.getSftpPasswordRef())) {
+            destination.setSecretRef(submission.getSftpPasswordRef());
+        }
+        destinations.save(destination);
+
+        audit.save(new AuditEvent(tenant.getId(), "destination.created",
+                jsonPayload("type", "SFTP", "name", name)));
     }
 
     private JsonNode readDraft(Submission submission) {
@@ -123,6 +172,13 @@ public class SubmissionApprovalService {
         return draft.hasNonNull(key) && StringUtils.hasText(draft.get(key).asText())
                 ? draft.get(key).asText().trim()
                 : fallback;
+    }
+
+    private static Integer intField(JsonNode draft, String key) {
+        if (draft.hasNonNull(key) && draft.get(key).canConvertToInt()) {
+            return draft.get(key).asInt();
+        }
+        return null;
     }
 
     private static boolean boolField(JsonNode draft, boolean fallback, String... keys) {

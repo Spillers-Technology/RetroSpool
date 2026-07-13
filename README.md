@@ -17,7 +17,7 @@ via [JTOpen](https://github.com/IBM/JTOpen)**, reads the bytes, and takes it fro
 
 ```bash
 mkdir retrospool && cd retrospool
-curl -fsSLO https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/v0.1.0/quickstart/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/v0.2.0/quickstart/docker-compose.yml
 docker compose up -d
 curl http://localhost:8080/api/health
 ```
@@ -46,8 +46,10 @@ IBM i OUTQ ─▶ poll (JTOpen) ─▶ sniff format ─▶ split concatenated PC
 The **middle band** — sniff → split → store → render → dedup, plus S3/MinIO landing
 storage — is built and verified end-to-end. The authenticated **admin console** now
 puts tenant, submission-review, capture, and connection-test workflows over that core.
-The public HOD submission intake, **queue poller** that feeds the pipeline, and
-**export fan-out** that drains it remain planned (see [Status](#status)).
+The **public HOD/WS submission intake** now lets a company upload its ACS/HOD session
+file, review the parsed connection, and submit it for approval. The **queue poller** that
+feeds the pipeline and the **export fan-out** that drains it remain planned (see
+[Status](#status)).
 
 ## See it work
 
@@ -128,7 +130,7 @@ docker run --rm -v "$PWD:/app" -w /app -v spool-gradle-cache:/home/gradle/.gradl
   gradle:8.10.2-jdk21 gradle build --no-daemon
 
 # run
-java -jar build/libs/retrospool-0.1.0.jar
+java -jar build/libs/retrospool-0.2.0.jar
 ```
 
 Integration tests (Testcontainers: real Postgres, MinIO, and the actual gpcl6
@@ -144,17 +146,20 @@ Architecture, data model, the phased plan, and an append-only decision log live 
 
 ## Status
 
-**v0.1.0 — pre-1.0.** Phases 0–3 are **complete and verified**. The v0.1.0 admin
-slice is delivered; polling, export execution, and public submission intake remain on
-the roadmap.
+**v0.2.0 — pre-1.0.** Both ingestion *edges* now exist in the app: companies self-serve
+onboard through the public HOD/WS intake, and operators approve them into active tenants.
+The **queue poller** and **export execution** remain the last planned pieces — both gated
+on a live IBM i host (D-011), which is also what 1.0.0 waits on.
 
 | Capability | State |
 |---|---|
 | JTOpen connection layer + Test Connection endpoint | **shipped** (mechanism wired & unit-tested; live signon awaits operator host/creds) |
-| Persistence model (Flyway V1+V2, tenant-scoped repos, secrets, isolation gate) | **shipped** |
+| Persistence model (Flyway V1–V3, tenant-scoped repos, secrets, isolation gate) | **shipped** |
 | Capture pipeline (sniff → split → store → PCL→PDF render → dedup) + S3 landing store | **shipped** (end-to-end tested vs real Postgres/MinIO/GhostPDL) |
 | Authenticated admin APIs (identity/stats, submission review, tenants, captures/download) | **shipped** |
 | React admin console (dashboard, review queue, tenants, captures, Test Connection) | **shipped** |
+| Public HOD/WS import + submission intake + `/submit` page | **shipped** (v0.2.0) |
+| Encrypted secret store (submitter-entered passwords, write-only) | **shipped** (v0.2.0) |
+| Approval → destination/secret promotion | **shipped** (v0.2.0) |
 | Queue poller (scheduled `*READY` drain + watermark) | planned |
 | Export destinations (S3 / SFTP / FTPS fan-out + retry) | planned |
-| Public HOD `.ws` import + submission creation + destination/secret promotion | planned |

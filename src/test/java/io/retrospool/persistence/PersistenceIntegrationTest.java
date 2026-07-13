@@ -3,6 +3,8 @@ package io.retrospool.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.retrospool.secrets.StoredSecret;
+import io.retrospool.secrets.StoredSecretRepository;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
@@ -45,6 +47,19 @@ class PersistenceIntegrationTest {
     SubmissionRepository submissions;
     @Autowired
     CaptureRepository captures;
+    @Autowired
+    StoredSecretRepository secrets;
+
+    @Test
+    void secretEnvelopeRoundTripsAsBytea() {
+        // V3 (D-023): the encrypted-secret envelope persists as bytea and reloads intact.
+        byte[] material = {0, 1, 2, (byte) 0xFF, 0x10, 0x42};
+        StoredSecret saved = secrets.saveAndFlush(new StoredSecret(material));
+
+        StoredSecret reloaded = secrets.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getMaterial()).containsExactly(0, 1, 2, 0xFF, 0x10, 0x42);
+        assertThat(reloaded.getCreatedAt()).isNotNull();
+    }
 
     @Test
     void tenantRoundTripsLibraryListArray() {

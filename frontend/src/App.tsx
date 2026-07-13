@@ -1,10 +1,11 @@
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ApiError } from "./api/client";
 import { useMe } from "./api/hooks";
 import { ErrorState, Spinner } from "./components/ui";
 import CapturesPage from "./pages/CapturesPage";
 import DashboardPage from "./pages/DashboardPage";
 import SubmissionsPage from "./pages/SubmissionsPage";
+import SubmitPage from "./pages/SubmitPage";
 import TenantDetailPage from "./pages/TenantDetailPage";
 import TenantsPage from "./pages/TenantsPage";
 import TestConnectionPage from "./pages/TestConnectionPage";
@@ -68,7 +69,7 @@ function Shell() {
             <NavLink to="/dashboard" className="text-2xl font-bold lowercase tracking-tight text-accent">
               retrospool<span className="animate-pulse">_</span>
             </NavLink>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-soft">admin console / 0.1</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ink-soft">admin console / 0.2</p>
           </div>
           <div className="sprocket hidden h-14 w-3 opacity-70 md:block" aria-hidden="true" />
         </div>
@@ -130,5 +131,12 @@ function NotFound() {
 }
 
 export default function App() {
+  // The public submission page (D-007) is a standalone, low-trust surface: it must not
+  // sit behind the admin identity gate that Shell enforces, so it is switched in by
+  // path before Shell ever calls useMe.
+  const { pathname } = useLocation();
+  if (pathname === "/submit" || pathname.startsWith("/submit/")) {
+    return <SubmitPage />;
+  }
   return <Shell />;
 }

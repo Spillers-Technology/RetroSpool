@@ -13,8 +13,8 @@
 | 4 | Poller wiring (first end-to-end) | not started |
 | 5 | Export destinations | not started |
 | 6 | Admin REST API + audit | **v0.1 slice done** (identity/stats, review, tenant reads, capture download; destination CRUD pending) |
-| 6.5 | Submission flow (HOD import + approval) | partial (admin approval done; public import/intake and destination promotion pending) |
-| 7 | React frontend | **admin console done** (public submission page and destination editor pending) |
+| 6.5 | Submission flow (HOD import + approval) | **done** (v0.2.0: `WsHodParser`, public intake, approval → destination/secret promotion) |
+| 7 | React frontend | **admin console + public `/submit` page done** (in-console destination editor pending) |
 
 **v0.0.1 status (2026-06-27):** verified end-to-end in Docker — app boots, connects to
 Postgres 16, Flyway applies all tables; `/api/health` + `/actuator/health` UP;
@@ -27,6 +27,15 @@ and its admin APIs (D-021/D-022): dashboard, existing-submission review and tena
 promotion, tenant detail, capture browsing/download, audit readout, and Test Connection.
 This is deliberately not the poller/export/public-intake milestone: Phases 4–5 remain
 unstarted, and the public half of Phase 6.5 remains planned.
+
+**v0.2.0 status (2026-07-12):** delivered the public submission intake (D-024) — the
+low-trust half of the two-surface model. `WsHodParser` imports PComm `.ws` / HOD session
+files; anonymous, CSRF-exempt `POST /api/submissions/parse` and `POST /api/submissions`
+create pending submissions; a standalone `/submit` React page drives upload → review →
+Test Connection → submit. An encrypted secret store (D-023, V3 migration) gives the
+surface a write path for submitter-entered passwords, and approval now provisions SFTP
+destinations and carries `port`/`ccsid`. Phases 4–5 (poller, export execution) remain the
+only unshipped work, both gated on a live IBM i host (D-011) — as is 1.0.0.
 
 **v0.0.1 (MVP cut)** = Phase 0 + Phase 1: prove the connection mechanism and ship a
 one-click **Test Connection**. See "v0.0.1 reality" below.
@@ -126,14 +135,16 @@ Boot a Spring Boot app that runs Flyway against Postgres and serves health.
 - **Delivered in v0.1.0:** admin review of existing pending rows and explicit
   approve/reject; approval promotes the draft's tenant fields and IBM i secret reference
   and records the reviewer/audit event.
-- **Remaining:** `HodFileParser` (ACS workstation XML → draft; port + device name
-  informational only) and the public submission controller/page that collects SFTP +
-  IBM i passwords. `POST /api/tenants/import-hod` will return a **draft** and never
-  auto-create a tenant.
-- **Remaining:** extend approval to create `export_destination` rows and carry their
-  secret references.
-- **Remaining/exit:** public end-to-end submission → review → approval → active tenant
-  plus destination/secret promotion. The table exists, but v0.1.0 has no public creator.
+- **Delivered in v0.2.0 (D-024):** `WsHodParser` (PComm `.ws` / HOD session file → draft;
+  port + device name informational) and the public submission controller collecting SFTP +
+  IBM i passwords. `POST /api/submissions/parse` returns a **draft** and never auto-creates
+  a tenant; `POST /api/submissions` creates a pending submission. (The route landed under
+  `/api/submissions`, not the handoff's `/api/tenants/import-hod`.)
+- **Delivered in v0.2.0:** approval creates `export_destination` rows and carries their
+  SFTP secret references (D-023 encrypted store gives the write path), plus `port`/`ccsid`.
+- **Exit met (v0.2.0):** public end-to-end submission → review → approval → active tenant
+  plus destination/secret promotion. Live signon inside Test Connection still awaits creds
+  (D-011).
 
 ### Phase 7 — React frontend
 **Delivered in v0.1.0:** Vite + React 18 + TypeScript + TanStack Query + Router +
@@ -142,8 +153,11 @@ detail tabs; captures list with original/PDF downloads; Test Connection; respons
 greenbar-themed shell and explicit signed-out state. The SPA is built into the Spring
 Boot jar/container and uses same-origin authenticated APIs.
 
-**Remaining:** standalone public HOD submission page and export-destination editor with
-conditional fields, test actions, and write-only credential replacement UX.
+**Delivered in v0.2.0:** the standalone public `/submit` page (WS/HOD upload → parsed-draft
+review → Test Connection → submit → confirmation), rendered outside the admin identity gate.
+
+**Remaining:** in-console export-destination editor with conditional fields, test actions,
+and write-only credential replacement UX.
 
 ## Cross-cutting (threaded, not a phase)
 - Dependency/architecture tests = licensing + tenant-isolation CI gates.

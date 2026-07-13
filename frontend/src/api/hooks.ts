@@ -3,7 +3,10 @@ import { api } from "./client";
 import type {
   CaptureView,
   Me,
+  ParsedSession,
   Stats,
+  SubmissionCreatedResponse,
+  SubmissionRequest,
   SubmissionView,
   TenantDetail,
   TenantSummary,
@@ -74,5 +77,24 @@ export function useTestConnection() {
   return useMutation({
     mutationFn: (req: TestConnectionRequest) =>
       api.post<TestConnectionResult>("/api/connection/test", req),
+  });
+}
+
+// --- Public submission intake (D-007), anonymous surface -----------------------
+
+export function useParseSession() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return api.postForm<ParsedSession>("/api/submissions/parse", form);
+    },
+  });
+}
+
+export function useCreateSubmission() {
+  return useMutation({
+    mutationFn: (req: SubmissionRequest) =>
+      api.post<SubmissionCreatedResponse>("/api/submissions", req),
   });
 }

@@ -33,15 +33,20 @@ The companies are internal customers; each queue holds a different company's dat
 isolation is intentional. The system exposes two distinct surfaces:
 
 ### 1. Submission surface (landing / low-trust)
-A standalone page. No credentialed access required. **Planned after v0.1.0**; the
-schema and admin review side exist, but the public parser/intake controller and page do
-not yet.
+A standalone page at `/submit`. No credentialed access required. **Delivered in v0.2.0**
+(D-024); switched in by path before the admin identity gate runs.
 
-- Upload a HOD `.ws` file → `HodFileParser` produces a **draft** (host, SSL flag,
-  LU/device name [informational], user id, session name).
-- The submitter adds the **SFTP destination password** and the **IBM i password**
-  (never present in HOD), and can run **Test Connection** (synchronous JTOpen signon).
-- Submitting creates a **pending `submission`** — it does **not** create a tenant.
+- Upload a PComm `.ws` or HOD session file → `WsHodParser` produces a **draft** (host,
+  port, SSL posture, LU/device name [informational], user id, session name, CCSID,
+  session type) with warnings rather than errors.
+- The submitter reviews/edits it, adds the **IBM i password** and an optional **SFTP
+  destination + password** (never present in a session file), and can run **Test
+  Connection** (synchronous JTOpen signon, ephemeral).
+- Submitting creates a **pending `submission`** via `POST /api/submissions` — it does
+  **not** create a tenant. `POST /api/submissions/parse` and `POST /api/submissions` are
+  anonymous and CSRF-exempt, matched path-exact so admin approve/reject stay gated.
+- Submitter passwords are persisted **write-only** through the encrypted secret store
+  (D-023), referenced from the submission and never echoed back.
 
 ### 2. Admin surface (credentialed / OIDC)
 The prod team's workspace. **Delivered in v0.1.0** as a React SPA backed by
@@ -59,13 +64,14 @@ authenticated Spring REST endpoints.
 ### Lifecycle
 
 ```
-HOD upload ─▶ parsed draft ─▶ pending submission ─▶ admin approval ─▶ active tenant ─▶ polling
-   [planned public intake]       [schema exists]       [v0.1.0]           [planned]
+WS/HOD upload ─▶ parsed draft ─▶ pending submission ─▶ admin approval ─▶ active tenant ─▶ polling
+   [v0.2.0 public intake]          [v0.2.0]              [v0.1.0]          + SFTP dest    [planned]
 ```
 
-The intended completed flow carries both submission credentials as **write-only**
-`secret_ref` values. In v0.1.0, approval carries an existing submission's IBM i secret
-reference to the tenant; SFTP destination promotion remains planned.
+Both submission credentials are carried as **write-only** `secret_ref` values (D-012,
+D-023). Approval promotes the draft's connection fields (including `port`/`ccsid`) and the
+IBM i secret onto the tenant, and — new in v0.2.0 — creates the `export_destination` row
+with its SFTP secret when the submission carried one.
 
 ## Admin authentication boundary (D-022)
 
@@ -196,8 +202,12 @@ Output Queues / Export Destinations / Recent Captures / Audit); tenant-scoped ca
 downloads; and ephemeral Test Connection. It is a same-origin Vite/React bundle served
 by Spring Boot and authenticated at the Authentik boundary described above.
 
-Still planned: the standalone HOD upload/submission page and the export-destination
-editor with conditional fields and write-only credential replacement UX.
+Delivered in v0.2.0 (D-024): the standalone public `/submit` page — WS/HOD upload → draft
+review → Test Connection → submit — outside the admin identity gate.
+
+Still planned: the admin export-destination editor with conditional fields and write-only
+credential replacement UX (submission intake can now create SFTP destinations on approval,
+but there is no in-console destination editor yet).
 
 ## Out of scope
 
