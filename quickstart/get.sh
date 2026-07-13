@@ -26,7 +26,8 @@ printf "Waiting for the API on http://localhost:8080 "
 for _ in $(seq 1 90); do
   if curl -fs http://localhost:8080/api/health >/dev/null 2>&1; then
     echo
-    echo "RetroSpool is up:  curl http://localhost:8080/api/health"
+    echo "RetroSpool is up:  http://localhost:8080 (local admin console)"
+    echo "Health check:      curl http://localhost:8080/api/health"
     echo "Next steps:        https://github.com/Spillers-Technology/RetroSpool/blob/main/QUICKSTART.md"
     exit 0
   fi

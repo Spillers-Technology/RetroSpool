@@ -33,7 +33,9 @@ The companies are internal customers; each queue holds a different company's dat
 isolation is intentional. The system exposes two distinct surfaces:
 
 ### 1. Submission surface (landing / low-trust)
-A standalone page. No credentialed access required.
+A standalone page. No credentialed access required. **Planned after v0.1.0**; the
+schema and admin review side exist, but the public parser/intake controller and page do
+not yet.
 
 - Upload a HOD `.ws` file → `HodFileParser` produces a **draft** (host, SSL flag,
   LU/device name [informational], user id, session name).
@@ -42,24 +44,52 @@ A standalone page. No credentialed access required.
 - Submitting creates a **pending `submission`** — it does **not** create a tenant.
 
 ### 2. Admin surface (credentialed / OIDC)
-The prod team's workspace.
+The prod team's workspace. **Delivered in v0.1.0** as a React SPA backed by
+authenticated Spring REST endpoints.
 
-- Reviews pending submissions and **approves** → promotion to an active **Tenant**
-  (plus its `export_destination` rows and secrets). Nothing auto-activates; approval is
-  the mandatory human-review gate.
+- Reviews existing pending submissions and **approves** → promotion to an active
+  **Tenant**. Nothing auto-activates; approval is the mandatory human-review gate.
+  A pessimistic lock on the submission row serializes competing decisions.
+  Destination-row creation and SFTP-secret promotion arrive with the public submission
+  flow; v0.1.0 carries the IBM i secret reference onto the tenant.
 - One page manages **many companies / many queues**, but every view (captures, audit,
-  exports, errors) is **scoped and auditable per company**. Convenience in the UI; hard
-  isolation in the data.
+  configured destinations) is **scoped and auditable per company**. Convenience in the
+  UI; hard isolation in the data.
 
 ### Lifecycle
 
 ```
 HOD upload ─▶ parsed draft ─▶ pending submission ─▶ admin approval ─▶ active tenant ─▶ polling
-                              (+ SFTP/IBM i passwords as write-only secrets, carried through)
+   [planned public intake]       [schema exists]       [v0.1.0]           [planned]
 ```
 
-Secrets collected at submission (SFTP password, IBM i password) ride through approval
-into the ingestion pipeline as **write-only** `secret_ref` values.
+The intended completed flow carries both submission credentials as **write-only**
+`secret_ref` values. In v0.1.0, approval carries an existing submission's IBM i secret
+reference to the tenant; SFTP destination promotion remains planned.
+
+## Admin authentication boundary (D-022)
+
+Production OIDC terminates at an **Authentik forward-auth outpost**, not inside the
+Spring application. After Authentik authenticates and authorizes a request, the outpost
+injects `X-authentik-username`, `X-authentik-email`, `X-authentik-name`, and
+`X-authentik-groups`. Retrospool turns that asserted identity into its stateless admin
+principal. It does not issue a second redirect or maintain an application session.
+
+The app permits health probes and the low-trust `POST /api/connection/test` route
+anonymously; every admin API requires authentication. Static SPA files are permitted by
+the app because the ingress/outpost is the outer gate. Consequently, the deployment
+boundary is load-bearing: clients must not be able to reach the service directly, and
+the proxy must remove client-supplied identity headers before writing trusted values.
+Authentik policy decides who may enter; the application treats every admitted forwarded
+identity as an admin.
+
+The application is stateless, but the upstream Authentik flow may still use a browser
+session cookie. Spring therefore issues a readable `XSRF-TOKEN` cookie on safe admin
+requests; the SPA echoes it as `X-XSRF-TOKEN` on mutations. Only the anonymous
+`POST /api/connection/test` contract is excluded from CSRF enforcement.
+
+For local development only, `retrospool.admin.dev-user` supplies a synthetic identity
+when Authentik headers are absent. Production must leave it blank.
 
 ## Tenant isolation (cross-cutting, mandatory)
 
@@ -80,7 +110,7 @@ SpooledFile bytes
   ─▶ ObjectStore (MinIO/S3)   (landing zone; key scheme per D-016)
   ─▶ PclRenderClient          (PCL only: → GhostPDL sidecar → .pdf sibling; D-018)
   ─▶ CaptureRepository        (metadata + dedup + render status)
-  ─▶ ExportDispatcher         (fan-out to every enabled destination on the tenant)
+  ─▶ ExportDispatcher         (planned: fan-out to enabled tenant destinations)
 ```
 
 ### Format sniffing (first 16 bytes, after stripping leading nulls)
@@ -123,6 +153,8 @@ marker.
 
 ## Polling
 
+**Planned; not delivered in v0.1.0.**
+
 - `SpoolPoller` (per tenant, `@Scheduled` at `poll_interval_seconds`) lists
   `*READY *HELD` spool files on each `tenant_output_queue`, filters by watermark,
   reads bytes, runs the pipeline, advances the watermark.
@@ -133,6 +165,9 @@ marker.
   pipeline is trusted. Resolved **per output queue** with fallback to the tenant default.
 
 ## Export destinations
+
+**Execution is planned; not delivered in v0.1.0.** The schema and admin read views
+exist, but destination editing, dispatch, and retry workers do not.
 
 Per tenant, multiple allowed (e.g. S3 archive + SFTP downstream). Each capture is queued
 to every enabled destination. Retry with exponential backoff in `export_attempt`,
@@ -148,18 +183,21 @@ max 5 attempts, then `FAILED` and surfaced in the UI.
 
 ## Connection layer
 
-`As400Factory` enforces `setGuiAvailable(false)`, `setMustUseSockets(true)` (critical on
-Linux), and `setUseSSL(true)` when configured. `TruststoreLoader` provides shared
-JKS/PKCS12 (per-tenant later). Connections pooled by `tenantId`, idle timeout 15–30 min,
-invalidated on credential change.
+`As400Factory` enforces `setGuiAvailable(false)` and `setMustUseSockets(true)` (critical
+on Linux), and constructs `SecureAS400` rather than plain `AS400` when SSL is configured
+(D-013). `TruststoreLoader` provides shared JKS/PKCS12 (per-tenant later). Tenant-keyed
+pooling, idle expiry, and invalidation on credential change arrive with the poller.
 
 ## Frontend scope
 
-Submission page (HOD upload → draft → SFTP/IBM i password → Test Connection → submit) and
-the credentialed admin: tenants list, tenant detail tabs (Connection / Output Queues /
-Export Destinations / Recent Captures / Audit), submission review/approval, captures list
-with download, export-destination editor with conditional fields + test. OIDC auth;
-credentials write-only (`•••• (set)` + Replace).
+The v0.1.0 credentialed admin SPA delivers dashboard statistics; submission
+list/filter/detail with approve/reject actions; tenant list and detail tabs (Connection /
+Output Queues / Export Destinations / Recent Captures / Audit); tenant-scoped capture
+downloads; and ephemeral Test Connection. It is a same-origin Vite/React bundle served
+by Spring Boot and authenticated at the Authentik boundary described above.
+
+Still planned: the standalone HOD upload/submission page and the export-destination
+editor with conditional fields and write-only credential replacement UX.
 
 ## Out of scope
 

@@ -187,3 +187,48 @@ gain; instead `quickstart/docker-compose.yml` builds it on the user's machine fr
 pinned tag's `render-sidecar/` directory via a remote git build context — still a single
 `docker compose up`, still build-from-source. The quickstart compose pins both the image
 tag and the git ref; bumping them is part of the release checklist (CONTRIBUTING.md).
+
+### D-021 — v0.1.0 delivers the credentialed admin console before public intake
+**Accepted** · 2026-07-12
+The first frontend delivery is the operator surface: a Vite/React 18/TypeScript SPA with
+TanStack Query, React Router, and Tailwind, built into the Spring Boot artifact. It
+provides dashboard statistics, submission review/approve/reject, tenant list/detail,
+tenant-scoped capture browsing and original/PDF downloads, and an ephemeral IBM i Test
+Connection form. Spring MVC forwards client-side routes to the SPA entry point.
+
+The supporting v0.1.0 API exposes current identity, statistics, submission review,
+tenant read views, and tenant-scoped capture downloads. Approval promotes an existing
+pending submission to a tenant, carries its IBM i secret reference, and records an audit
+event.
+
+This does **not** declare the entire original Phase 6/6.5/7 scope complete. Public HOD
+`.ws` parsing and submission creation, destination/secret promotion, destination editing,
+the queue poller, and export fan-out remain planned. Shipping the operator workspace
+first makes the already-delivered persistence and capture pipeline inspectable without
+pretending that the ingestion edges exist.
+
+### D-022 — Admin authentication trusts Authentik forward-auth headers at the ingress boundary
+**Accepted** · 2026-07-12
+Production OIDC is terminated once, by an Authentik forward-auth outpost. Retrospool does
+not initiate a second OIDC authorization-code flow; a stateless pre-authentication filter
+maps Authentik's `X-authentik-username`, `X-authentik-email`, `X-authentik-name`, and
+`X-authentik-groups` assertions into the admin principal. Health endpoints and the
+low-trust `POST /api/connection/test` route are anonymous; every admin API requires that
+principal and returns a JSON `401` otherwise.
+
+This makes the proxy boundary part of the security model. The application service must
+not be directly reachable by untrusted clients, and the proxy must strip incoming
+identity headers before setting its own. Authentik policy controls admission; the app
+assigns its admin role to each identity the outpost admits. Static SPA assets remain
+permitted at the Spring layer because the ingress/outpost is expected to gate the whole
+admin address.
+
+Stateless application authentication does not eliminate CSRF risk because the Authentik
+outpost may authenticate the browser with its own cookie. Spring uses a cookie-backed
+CSRF token for admin mutations: `XSRF-TOKEN` is readable by the same-origin SPA and must
+be echoed as `X-XSRF-TOKEN`. The public Test Connection route is the sole mutation
+excluded from CSRF enforcement.
+
+Local development may set `retrospool.admin.dev-user` to synthesize an admin identity
+when forwarded headers are absent. The default is blank, and production deployments
+must never enable it.

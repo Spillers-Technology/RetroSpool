@@ -183,6 +183,10 @@
     color: var(--ink-soft);
     padding: .55rem .3rem .2rem;
   }
+  figure.mobile-shot {
+    width: min(100%, 30rem);
+    justify-self: center;
+  }
 
   footer {
     margin-top: 3.2rem;
@@ -245,11 +249,12 @@
       printer is alive. The session was never actually required.
     </p>
     <p>
-      <strong>retrospool</strong> is a headless web service built to replace that whole
+      <strong>retrospool</strong> is a self-hosted web application built to replace that whole
       ritual: it reads spool bytes directly via
       <a href="https://github.com/IBM/JTOpen">JTOpen</a> — no TN5250E negotiation, no
       device-name juggling, no port 992 — and turns them into PDFs. The
-      <strong>capture-and-render core is built and verified end-to-end</strong>; the
+      <strong>capture-and-render core and credentialed operator console are built</strong>;
+      the
       queue poller that drains a live <code>OUTQ</code> on a schedule, and export
       fan-out to S3&nbsp;/&nbsp;SFTP&nbsp;/&nbsp;FTPS, are the next phases (see
       <a href="#status">status</a>).
@@ -281,10 +286,12 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
   </section>
 
   <section>
-    <h2>What works today <span class="tag shipped">v0.0.2 · verified</span></h2>
+    <h2>What works today <span class="tag shipped">v0.1.0 · verified</span></h2>
     <p style="font-size:.9rem; color:var(--ink-soft); margin-top:0">
-      Every item below is implemented and exercised by unit + Testcontainers integration
-      tests against real Postgres, MinIO, and the actual <code>gpcl6</code> sidecar.
+      The backend is exercised by unit + Testcontainers integration tests against real
+      Postgres, MinIO, and the actual <code>gpcl6</code> sidecar. The production frontend
+      bundle is browser-driven to generate the product views below, with console and page
+      errors treated as failures.
     </p>
     <ul class="grid">
       <li><b>Format sniffing</b>Spool files are <code>DEVTYPE(*USERASCII)</code> opaque
@@ -306,45 +313,63 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
         build if a repository query forgets its <code>tenantId</code>.</li>
       <li><b>Idempotent by construction</b>Restarts, re-polls, and races all collapse
         into the same database constraint. Duplicates are skipped, never errors.</li>
+      <li><b>Operator console</b>A responsive React admin surface for dashboard counts,
+        submission review, tenant settings, capture downloads, and ephemeral IBM i sign-on
+        tests, guarded by Authentik forward-auth identity.</li>
     </ul>
   </section>
 
   <section>
     <h2>See it work</h2>
     <p style="font-size:.9rem; color:var(--ink-soft); margin-top:0">
-      retrospool is a headless service — the admin UI is a later phase. Its surfaces today
-      are the REST API and the capture pipeline's output. Endpoint paths, JSON shapes,
-      enum values, and the object-store key scheme below are taken verbatim from the code;
-      host names, IDs, and report contents are mock data.
+      These are screenshots of the actual production-built admin console, not hand-drawn
+      mockups. A Playwright harness launches the app and supplies deterministic API fixtures;
+      all company names, hosts, IDs, and report details shown here are invented demo data.
     </p>
     <div class="shots">
       <figure>
         <button class="lightbox-trigger" type="button" data-lightbox>
-          <img src="assets/capture-pipeline.png" alt="A PCL statement rendered to PDF beside its tenant-scoped capture record, showing detectedFormat PCL, sha256, storage keys, and renderStatus SUCCESS.">
+          <img src="assets/admin-dashboard.png" alt="RetroSpool admin dashboard with a greenbar-inspired sidebar, tenant and capture totals, operator action queue, and capture contract.">
         </button>
         <figcaption>
-          <b>Capture pipeline</b> — a concatenated PCL spool file sniffed, split, stored
-          as <code>.pcl</code>, and rendered to a <code>.pdf</code> sibling via the GhostPDL
-          sidecar. The capture record and audit event mirror the persisted row.
+          <b>Operator dashboard</b> — a shift-at-a-glance view of active tenants,
+          pending approvals, captured reports, configured queues, and the next useful actions.
         </figcaption>
       </figure>
       <figure>
         <button class="lightbox-trigger" type="button" data-lightbox>
-          <img src="assets/test-connection.png" alt="curl POST to /api/connection/test returning a TestConnectionResult with success true, code OK, and elapsedMillis, plus a /api/health check.">
+          <img src="assets/admin-submissions.png" alt="RetroSpool submissions review queue with an expanded pending company draft, write-only credential indicators, and explicit approve or reject actions.">
         </button>
         <figcaption>
-          <b>Test Connection</b> — the synchronous JTOpen signon endpoint
-          (<code>POST /api/connection/test</code>) returning the real pass/fail result
-          contract. Credentials are taken in the request and never persisted.
+          <b>Human approval gate</b> — inspect parsed settings and write-only secret
+          references before explicitly promoting a pending submission into a tenant.
         </figcaption>
       </figure>
       <figure>
         <button class="lightbox-trigger" type="button" data-lightbox>
-          <img src="assets/format-detection.png" alt="Format detection table mapping byte signatures like %PDF- and ESC E to PDF, PCL, TEXT, and UNKNOWN with their handling.">
+          <img src="assets/admin-captures.png" alt="RetroSpool captures table listing report names, IBM i jobs, detected formats, sizes, capture times, and original or PDF download links.">
         </button>
         <figcaption>
-          <b>Format detection</b> — how the sniffer maps the first 16 bytes to
-          PDF / PCL / TEXT / UNKNOWN, and where concatenated PCL is split.
+          <b>Tenant-scoped captures</b> — browse original spool artifacts and their
+          rendered PDF siblings without crossing company boundaries.
+        </figcaption>
+      </figure>
+      <figure>
+        <button class="lightbox-trigger" type="button" data-lightbox>
+          <img src="assets/admin-test-connection.png" alt="RetroSpool Test IBM i connection screen showing TLS sign-on parameters and a successful SecureAS400 result with round-trip time.">
+        </button>
+        <figcaption>
+          <b>Ephemeral connection test</b> — exercise the real JTOpen sign-on path and
+          report a useful result while never persisting the submitted password.
+        </figcaption>
+      </figure>
+      <figure class="mobile-shot">
+        <button class="lightbox-trigger" type="button" data-lightbox>
+          <img src="assets/admin-mobile.png" alt="RetroSpool admin dashboard at mobile width with horizontally scrollable navigation and responsive greenbar-styled summary cards.">
+        </button>
+        <figcaption>
+          <b>Responsive by default</b> — the same console works from a phone-sized
+          viewport when an operator needs a quick status check away from a desk.
         </figcaption>
       </figure>
     </div>
@@ -355,6 +380,7 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
     <p class="stack">
       Spring Boot 3 &middot; Java 21 (Temurin) &middot; JTOpen &middot; PostgreSQL 16 +
       Flyway &middot; PDFBox &middot; AWS SDK v2 &middot; GhostPDL (sidecar only) &middot;
+      React 18 &middot; Vite &middot; TypeScript &middot; TanStack Query &middot; Tailwind &middot;
       Testcontainers (real Postgres, MinIO, and the actual gpcl6 sidecar in CI-style
       integration tests) &middot; Docker end-to-end — the dev machine needs no JDK.
     </p>
@@ -368,8 +394,9 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
   <section id="status">
     <h2>Status</h2>
     <p>
-      <strong>v0.0.2</strong> — pre-1.0 and honest about it. Phases 0&ndash;3 are complete
-      and verified; phases 4&ndash;7 are designed but not yet built.
+      <strong>v0.1.0</strong> — pre-1.0 and honest about it. The capture-and-render core,
+      authenticated admin API, and React operator console are delivered. Live queue polling,
+      export fan-out, and the public HOD intake surface remain next.
     </p>
     <ul class="grid">
       <li><b>Connection layer <span class="tag shipped">shipped</span></b>TLS signon via
@@ -387,9 +414,12 @@ IBM i OUTQ ──▶ poll (JTOpen) ──▶ sniff format ──▶ split concat
         host to validate against.</li>
       <li><b>Export destinations <span class="tag planned">planned</span></b>Fan-out to
         S3 / SFTP / FTPS with retry + backoff. Only the S3 landing store exists today.</li>
-      <li><b>Admin API, HOD submission &amp; React UI <span class="tag planned">planned</span></b>OIDC-guarded
-        admin REST API, the HOD <code>.ws</code> import + approval flow, and the React admin
-        console are all later phases.</li>
+      <li><b>Admin API &amp; React console <span class="tag shipped">shipped</span></b>Authentik
+        forward-auth identity, dashboard statistics, tenant detail, submission approval,
+        capture downloads, and Test Connection are wired into the production image.</li>
+      <li><b>Public HOD intake <span class="tag planned">planned</span></b>The operator-side
+        review and promotion gate is present; public ACS <code>.ws</code> parsing and draft
+        submission remain a later phase.</li>
     </ul>
     <p style="font-size:.85rem; color:var(--ink-soft)">
       The full phased plan and an append-only decision log live in

@@ -11,6 +11,37 @@ All notable changes to retrospool are documented here. The format follows
 > ([docs/decisions.md](docs/decisions.md), D-001 onward), which records every
 > architectural decision — including the ones that were later superseded and why.
 
+## [0.1.0] — 2026-07-12
+
+### Added
+- **Authenticated React admin console** (D-021): Vite + React 18 + TypeScript +
+  TanStack Query + Tailwind, packaged into the Spring Boot application. The console
+  includes a dashboard, submission review/approve/reject, tenant list and detail tabs,
+  tenant-scoped capture browsing/downloads, and an ephemeral Test Connection form.
+- **Admin REST API**: current-operator identity and headline stats; submission list,
+  detail, approval, and rejection; tenant list/detail with queues, destinations,
+  recent captures, and audit history; tenant-scoped original/rendered artifact download.
+- **Audited approval service**: promotes an existing pending submission into a tenant,
+  carries its IBM i secret reference, records the reviewer, and writes an audit event.
+  A database row lock serializes competing approval/rejection decisions.
+- **Authentik forward-auth integration** (D-022): stateless pre-authentication from
+  Authentik identity headers, JSON `401` responses for unauthenticated API calls, and an
+  explicit local-only `retrospool.admin.dev-user` escape hatch. Cookie-backed CSRF
+  tokens protect admin mutations even though the application itself has no session.
+- Focused tests for forwarded-header/dev authentication, submission approval/rejection,
+  and tenant-scoped capture downloads.
+
+### Changed
+- Version advanced to `0.1.0`; container and release builds compile the frontend and
+  package its static assets into the runnable application.
+- The admin console and admin APIs now require authentication. Health endpoints remain
+  open for direct container and Kubernetes probes.
+
+### Not yet included
+- Public HOD `.ws` import and submission creation, scheduled IBM i queue polling, and
+  S3/SFTP/FTPS export fan-out remain planned. The v0.1.0 console can review submissions
+  already present in the database, but it does not yet provide the low-trust intake flow.
+
 ## [0.0.3] — 2026-07-08
 
 ### Added

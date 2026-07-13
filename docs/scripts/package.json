@@ -2,12 +2,14 @@
   "name": "retrospool-product-media",
   "private": true,
   "version": "0.0.0",
-  "description": "Repeatable capture of RetroSpool product media (API + capture-pipeline surfaces) into site/assets.",
+  "description": "Repeatable real-app screenshots of the RetroSpool admin console for GitHub Pages.",
   "type": "module",
   "scripts": {
-    "capture": "node capture-product-media.mjs"
+    "build:frontend": "npm --prefix ../../frontend ci && npm --prefix ../../frontend run build",
+    "capture": "npm run build:frontend && node capture-product-media.mjs",
+    "install:browsers": "playwright install chromium"
   },
   "devDependencies": {
-    "playwright": "^1.61.1"
+    "playwright": "1.61.1"
   }
 }

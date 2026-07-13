@@ -1,236 +1,331 @@
-// Repeatable capture of RetroSpool product media.
+// Capture the real, production-built RetroSpool admin console for GitHub Pages.
 //
-// RetroSpool is a headless service — there is no GUI yet (the React admin UI is
-// planned, Phase 7). So the genuine, screenshottable product surfaces today are:
-//   1. the REST API (Test Connection + health), and
-//   2. the capture pipeline's output (a spool file -> stored original + rendered PDF).
-//
-// Every endpoint, field name, enum value, JSON shape and storage-key scheme in the
-// scenes below is taken verbatim from the implementation (see
-// src/main/java/io/retrospool/...). Host names, UUIDs and report contents are
-// realistic mock data — no real host or customer is depicted.
-//
-// Output: PNGs written to site/assets/ (the GitHub Pages artifact root).
-//
-// Run:  cd docs/scripts && npm install && npm run capture
+// `npm run capture` first builds frontend/ using its lockfile, then this script
+// serves that Vite production bundle. API calls are intercepted in the browser
+// with deterministic, invented fixture data: no live service, credentials, or
+// customer information is used.
 
-import { chromium } from "playwright";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(here, "..", "..", "site", "assets");
-mkdirSync(OUT, { recursive: true });
+const root = resolve(here, "..", "..");
+const frontend = resolve(root, "frontend");
+const output = resolve(root, "site", "assets");
+const origin = "http://127.0.0.1:4173";
+mkdirSync(output, { recursive: true });
 
-// ---- shared styling ---------------------------------------------------------
+const tenantId = "109bb7f2-e379-4ae0-a733-55b04419bc37";
+const secondTenantId = "327bc6ee-520c-44ba-97dd-c65d0810ab94";
 
-const BASE = /* css */ `
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body { font-family: "Courier New", Courier, monospace; -webkit-font-smoothing: antialiased; }
-  .frame { display: inline-block; }
-  .win {
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 18px 50px rgba(0,0,0,.30);
-  }
-  .titlebar {
-    display: flex; align-items: center; gap: .55rem;
-    padding: .55rem .8rem;
-    border-bottom: 1px solid var(--rule);
-    font-size: .82rem; letter-spacing: .02em;
-  }
-  .dot { width: .72rem; height: .72rem; border-radius: 50%; display: inline-block; }
-  .dot.r { background: #e0605e; }
-  .dot.y { background: #e6b94b; }
-  .dot.g { background: #4fb06a; }
-  .title { margin-left: .5rem; opacity: .8; }
-  .badge {
-    margin-left: auto; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
-    padding: .12rem .5rem; border: 1px solid var(--rule); border-radius: 999px;
-  }
-  pre { margin: 0; white-space: pre; }
-  .k { color: var(--key); }
-  .s { color: var(--str); }
-  .n { color: var(--num); }
-  .b { color: var(--bool); }
-  .c { color: var(--comment); }
-  .prompt { color: var(--accent); }
-`;
+const operator = {
+  username: "operator.demo",
+  email: "operator@retrospool.example",
+  displayName: "Demo Operator",
+  groups: ["retrospool-admins"],
+};
 
-// dark "terminal" palette (phosphor green) for the API scenes
-const TERM = /* css */ `
-  --paper:#0a0f0b; --panel:#0c140e; --rule:#1e3a28; --accent:#7dde9a;
-  --ink:#bfe9cd; --muted:#4e9a68; --key:#7dde9a; --str:#a6f4be; --num:#e6c07b;
-  --bool:#c58af9; --comment:#4e9a68;
-`;
-
-// light "greenbar printout" palette for the pipeline scene
-const BAR = /* css */ `
-  --paper:#eef4ea; --panel:#fdfdf8; --rule:#9dbfa6; --accent:#1c6b3c;
-  --ink:#1d2b23; --muted:#43584b; --key:#1c6b3c; --str:#2a6f4e; --num:#8a5a12;
-  --bool:#6d3bd0; --comment:#6d8a76;
-`;
-
-function page(vars, bg, inner) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-    :root{${vars}} body{background:${bg}; padding:38px;} ${BASE}
-  </style></head><body>${inner}</body></html>`;
-}
-
-// ---- scene 1: Test Connection + health (REST API, Phase 1 — shipped) --------
-
-const sceneConnection = page(
-  TERM,
-  "radial-gradient(120% 120% at 20% 0%, #10231a 0%, #060a07 60%)",
-  /* html */ `
-  <div class="frame"><div class="win" style="width:1000px; background:var(--panel); color:var(--ink)">
-    <div class="titlebar" style="background:#0c140e; color:var(--ink)">
-      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-      <span class="title">retrospool — Test Connection</span>
-      <span class="badge" style="color:var(--accent)">API · shipped</span>
-    </div>
-    <div style="padding:1.1rem 1.3rem; font-size:.9rem; line-height:1.65">
-<pre><span class="prompt">$</span> curl -sS -X POST https://retrospool.internal<span class="k">/api/connection/test</span> \\
-    -H <span class="s">'content-type: application/json'</span> \\
-    -d <span class="s">'{"host":"ISERIES.acme.example","username":"RSPOOL",
-        "password":"••••••••","useSsl":true}'</span>
-
-<span class="c"># SecureAS400 signon over TLS · GuiAvailable=false · MustUseSockets=true</span>
-{
-  <span class="k">"success"</span>: <span class="b">true</span>,
-  <span class="k">"code"</span>: <span class="s">"OK"</span>,
-  <span class="k">"message"</span>: <span class="s">"Signon succeeded (SecureAS400, TLS)"</span>,
-  <span class="k">"elapsedMillis"</span>: <span class="n">842</span>
-}
-
-<span class="prompt">$</span> curl -sS https://retrospool.internal<span class="k">/api/health</span>
-{ <span class="k">"status"</span>: <span class="s">"UP"</span>, <span class="k">"service"</span>: <span class="s">"retrospool"</span>, <span class="k">"time"</span>: <span class="s">"2026-07-05T14:22:07Z"</span> }</pre>
-      <div style="margin-top:1.1rem; padding-top:.9rem; border-top:1px dashed var(--rule); color:var(--muted); font-size:.8rem">
-        code &rarr; <span class="s">OK</span> · INVALID_CREDENTIALS · SECURITY_ERROR · CONNECTIVITY_ERROR · ERROR &nbsp;·&nbsp;
-        raw credentials are never persisted — the password array is scrubbed after signon.
-      </div>
-    </div>
-  </div></div>`
-);
-
-// ---- scene 2: capture pipeline output (Phase 3 — shipped) -------------------
-
-const reportLines = [
-  "  ACME DISTRIBUTION INC              STATEMENT OF ACCOUNT",
-  "  OUTQ: PRT01            JOB: MONTHEND/RSPOOL/482913",
-  "  ------------------------------------------------------------",
-  "  ACCOUNT   0042-118        AS OF 2026-06-30        PAGE 1",
-  "",
-  "  INVOICE    DATE        DUE         AMOUNT      BALANCE",
-  "  IN-88213   06-02-2026  07-02-2026   1,204.50    1,204.50",
-  "  IN-88291   06-11-2026  07-11-2026     318.00    1,522.50",
-  "  IN-88344   06-19-2026  07-19-2026   2,940.75    4,463.25",
-  "  CR-01120   06-22-2026  --           -150.00     4,313.25",
-  "  ------------------------------------------------------------",
-  "  CURRENT      30 DAYS     60 DAYS     90+ DAYS    TOTAL DUE",
-  "  4,313.25         0.00        0.00        0.00     4,313.25",
-  "",
-  "  REMIT TO: LOCKBOX 7741  ·  TERMS NET 30  ·  FORM S/AR-STMT",
-].join("\n");
-
-const scenePipeline = page(
-  BAR,
-  "repeating-linear-gradient(#dcedd8 0 26px, #eef4ea 26px 52px)",
-  /* html */ `
-  <div class="frame"><div class="win" style="width:1120px; background:var(--panel); color:var(--ink)">
-    <div class="titlebar" style="background:#e7f1e3; color:var(--ink)">
-      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-      <span class="title">retrospool — capture pipeline</span>
-      <span class="badge" style="color:var(--accent)">PCL → PDF · shipped</span>
-    </div>
-    <div style="padding:.7rem 1.1rem; border-bottom:1px dashed var(--rule); font-size:.78rem; color:var(--muted); letter-spacing:.02em">
-      OUTQ bytes &nbsp;▸&nbsp; <b style="color:var(--accent)">sniff</b> &nbsp;▸&nbsp; <b style="color:var(--accent)">split</b> (ESC E) &nbsp;▸&nbsp; store original <code>.pcl</code> &nbsp;▸&nbsp; <b style="color:var(--accent)">render</b> (GhostPDL sidecar) &nbsp;▸&nbsp; <code>.pdf</code> sibling
-    </div>
-    <div style="display:grid; grid-template-columns: 1.02fr 1fr; gap:0">
-      <!-- rendered PDF preview -->
-      <div style="padding:1.1rem 1.2rem; border-right:1px dashed var(--rule)">
-        <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:.5rem">rendered .pdf</div>
-        <div style="background:#fff; border:1px solid var(--rule); box-shadow:0 6px 18px rgba(0,0,0,.12); padding:.9rem 1rem">
-          <pre style="font-size:.66rem; line-height:1.5; color:#1a1a1a">${reportLines}</pre>
-        </div>
-      </div>
-      <!-- capture record -->
-      <div style="padding:1.1rem 1.2rem">
-        <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:.5rem">capture record</div>
-<pre style="font-size:.78rem; line-height:1.62">{
-  <span class="k">"detectedFormat"</span>:      <span class="s">"PCL"</span>,
-  <span class="k">"logicalSegmentIndex"</span>: <span class="n">0</span>,
-  <span class="k">"sha256"</span>:              <span class="s">"9f2a…c7e1"</span>,
-  <span class="k">"byteSize"</span>:            <span class="n">48213</span>,
-  <span class="k">"spoolJobName"</span>:        <span class="s">"MONTHEND"</span>,
-  <span class="k">"spoolFileName"</span>:       <span class="s">"AR_STATEMENTS"</span>,
-  <span class="k">"storageKey"</span>:
-    <span class="s">"6a1e…/2026/07/05/b2f1c8e4-0.pcl"</span>,
-  <span class="k">"renderedStorageKey"</span>:
-    <span class="s">"6a1e…/2026/07/05/b2f1c8e4-0.pcl.pdf"</span>,
-  <span class="k">"renderStatus"</span>:        <span class="s">"SUCCESS"</span>
-}</pre>
-        <div style="margin-top:.9rem; padding-top:.7rem; border-top:1px dashed var(--rule); font-size:.76rem; color:var(--muted)">
-          <span class="c"># audit_event</span> &nbsp; <span class="s">CAPTURE_CREATED</span> &nbsp;·&nbsp; tenant-scoped &nbsp;·&nbsp;
-          dedup <code>unique(tenant_id, sha256, segment)</code>
-        </div>
-      </div>
-    </div>
-  </div></div>`
-);
-
-// ---- scene 3: format detection (documented behaviour, Phase 3) --------------
-
-const sceneSniff = page(
-  TERM,
-  "radial-gradient(120% 120% at 80% 0%, #10231a 0%, #060a07 60%)",
-  /* html */ `
-  <div class="frame"><div class="win" style="width:960px; background:var(--panel); color:var(--ink)">
-    <div class="titlebar" style="background:#0c140e; color:var(--ink)">
-      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-      <span class="title">retrospool — format detection</span>
-      <span class="badge" style="color:var(--accent)">first 16 bytes</span>
-    </div>
-    <div style="padding:1.1rem 1.3rem; font-size:.86rem; line-height:1.85">
-<pre>  signature                       format
-  <span class="c">───────────────────────────────────────────</span>
-  <span class="s">%PDF-</span>                           <span class="b">PDF</span>    <span class="c">→ passthrough (SKIPPED)</span>
-  <span class="n">1B 45</span>  <span class="c">(ESC E)</span>              <span class="b">PCL</span>    <span class="c">→ render .pdf sibling</span>
-  <span class="n">1B 25</span>  <span class="c">(ESC %)</span>              <span class="b">PCL</span>    <span class="c">XL / PJL</span>
-  <span class="n">1B 26</span>  <span class="c">(ESC &amp;)</span>              <span class="b">PCL</span>
-  printable ASCII + whitespace    <span class="b">TEXT</span>   <span class="c">→ PDFBox (Courier)</span>
-  otherwise                       <span class="b">UNKNOWN</span> <span class="c">→ store .bin</span></pre>
-      <div style="margin-top:1rem; padding-top:.85rem; border-top:1px dashed var(--rule); color:var(--muted); font-size:.8rem">
-        concatenated PCL is split on <code>ESC E</code> — but only when preceded by a form feed
-        (<code>0x0C</code>) or at offset 0, to dodge false positives inside binary sections.
-        The original bytes are always kept; render failure never fails the capture.
-      </div>
-    </div>
-  </div></div>`
-);
-
-// ---- render ----------------------------------------------------------------
-
-const scenes = [
-  { name: "test-connection", html: sceneConnection },
-  { name: "capture-pipeline", html: scenePipeline },
-  { name: "format-detection", html: sceneSniff },
+const captures = [
+  capture("f7346c8a-79c8-4ec5-bcf0-dd52fbaeff9f", "AR_STATEMENTS", "MONTHEND", "PCL", 48213, "SUCCESS", true, "2026-07-12T13:42:18Z"),
+  capture("5d6205f6-53c5-489b-9836-e539f8a747a8", "PICK_TICKETS", "ORDERS", "PDF", 194802, "SKIPPED", false, "2026-07-12T13:36:04Z"),
+  capture("dcfa2ac6-bd86-4a0a-a6a9-7c32bdfdeba3", "DAILY_SALES", "NIGHTLY", "TEXT", 18642, "SUCCESS", true, "2026-07-12T12:05:39Z"),
+  capture("e0901207-7ac7-4be1-a6bf-7c289e91ad7d", "AP_CHECKS", "APRUN", "PCL", 86120, "SUCCESS", true, "2026-07-12T11:54:11Z"),
+  capture("8ee97009-a891-4165-b8f4-6341e775eefc", "INVENTORY_AGING", "WEEKLY", "PCL", 128993, "SUCCESS", true, "2026-07-12T10:18:52Z"),
 ];
 
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ deviceScaleFactor: 2 });
-const pageObj = await ctx.newPage();
+const tenants = [
+  {
+    id: tenantId,
+    name: "Northstar Distribution (Demo)",
+    host: "ibmi.northstar.example",
+    username: "RSPOOL",
+    useSsl: true,
+    retentionPolicy: "HOLD",
+    pollIntervalSeconds: 60,
+    createdAt: "2026-06-18T15:04:12Z",
+    outputQueues: 3,
+    exportDestinations: 2,
+    captures: 1284,
+  },
+  {
+    id: secondTenantId,
+    name: "Bluebird Manufacturing (Demo)",
+    host: "ibmi.bluebird.example",
+    username: "SPLREADER",
+    useSsl: true,
+    retentionPolicy: "HOLD",
+    pollIntervalSeconds: 120,
+    createdAt: "2026-06-25T18:31:50Z",
+    outputQueues: 2,
+    exportDestinations: 1,
+    captures: 647,
+  },
+];
 
-for (const scene of scenes) {
-  await pageObj.setContent(scene.html, { waitUntil: "networkidle" });
-  const el = await pageObj.$(".frame");
-  const target = resolve(OUT, `${scene.name}.png`);
-  await el.screenshot({ path: target });
-  console.log(`  ✓ ${scene.name}.png`);
+const tenantDetail = {
+  ...tenants[0],
+  port: 9476,
+  ibmiPasswordSet: true,
+  printerDeviceName: "RSPLDEV",
+  ccsid: 37,
+  libraryList: ["QGPL", "RPTLIB"],
+  updatedAt: "2026-07-10T20:14:31Z",
+  outputQueues: [
+    { id: "4f516922-770f-4317-9f8b-68c7e5a19cdd", library: "QUSRSYS", queueName: "ARPRINT", retentionPolicy: null },
+    { id: "d9d627a0-b2eb-4c56-bdaa-41994d703331", library: "QUSRSYS", queueName: "SHIPDOCS", retentionPolicy: "HOLD" },
+    { id: "653117d0-6bf7-452b-a556-f8e80ddda587", library: "RPTLIB", queueName: "DAILYRPT", retentionPolicy: null },
+  ],
+  exportDestinations: [
+    {
+      id: "9e05d091-83b5-4076-a238-06008b3d1cc6",
+      type: "S3",
+      name: "Reporting archive",
+      config: { bucket: "retrospool-demo", region: "us-east-1", prefix: "northstar/reports" },
+      secretSet: true,
+      enabled: true,
+    },
+    {
+      id: "d2bf3441-f287-46df-9569-4db2eb6bb6d3",
+      type: "SFTP",
+      name: "Document portal",
+      config: { host: "sftp.northstar.example", port: 22, remote_path: "/incoming/reports" },
+      secretSet: true,
+      enabled: true,
+    },
+  ],
+  recentCaptures: captures,
+  recentAudit: [
+    { id: 4104, eventType: "CAPTURE_CREATED", payload: { spoolFile: "AR_STATEMENTS", format: "PCL", rendered: true }, createdAt: "2026-07-12T13:42:18Z" },
+    { id: 4103, eventType: "CONNECTION_TESTED", payload: { outcome: "OK", tls: true }, createdAt: "2026-07-12T13:31:05Z" },
+    { id: 4098, eventType: "SUBMISSION_APPROVED", payload: { reviewedBy: "operator.demo" }, createdAt: "2026-07-11T16:08:44Z" },
+  ],
+};
+
+const submissions = [
+  {
+    id: "af480be6-6f3e-4666-a60d-cd8a03d37991",
+    status: "PENDING",
+    draft: {
+      name: "Pinecone Supply (Demo)",
+      host: "ibmi.pinecone.example",
+      username: "RSPOOL",
+      use_ssl: true,
+      library: "QUSRSYS",
+      output_queue: "REPORTS",
+      retention_policy: "HOLD",
+      poll_interval_seconds: 60,
+    },
+    hasIbmiPassword: true,
+    hasSftpPassword: true,
+    submittedAt: "2026-07-12T12:20:04Z",
+    reviewedBy: null,
+    reviewedAt: null,
+    resultingTenantId: null,
+  },
+  {
+    id: "b866eaf1-28f1-4732-957b-d5f6a8f5a60c",
+    status: "PENDING",
+    draft: {
+      name: "Redwood Parts (Demo)",
+      host: "ibmi.redwood.example",
+      username: "SPOOLWEB",
+      use_ssl: true,
+      library: "RPTLIB",
+      output_queue: "INVOICES",
+    },
+    hasIbmiPassword: true,
+    hasSftpPassword: false,
+    submittedAt: "2026-07-12T10:48:29Z",
+    reviewedBy: null,
+    reviewedAt: null,
+    resultingTenantId: null,
+  },
+  {
+    id: "aab9cab2-40ab-46b7-95e1-f42f289b6dbd",
+    status: "APPROVED",
+    draft: { name: "Northstar Distribution (Demo)", host: "ibmi.northstar.example", username: "RSPOOL" },
+    hasIbmiPassword: true,
+    hasSftpPassword: true,
+    submittedAt: "2026-07-11T14:02:55Z",
+    reviewedBy: "operator.demo",
+    reviewedAt: "2026-07-11T16:08:44Z",
+    resultingTenantId: tenantId,
+  },
+];
+
+function capture(id, spoolFileName, spoolJobName, detectedFormat, byteSize, renderStatus, hasRenderedPdf, capturedAt) {
+  return {
+    id,
+    spoolFileName,
+    spoolJobName,
+    spoolJobUser: "RSPOOL",
+    detectedFormat,
+    logicalSegmentIndex: 0,
+    sha256: id.replaceAll("-", "").padEnd(64, "0"),
+    byteSize,
+    renderStatus,
+    hasRenderedPdf,
+    createdAt: capturedAt,
+    capturedAt,
+  };
 }
 
-await browser.close();
-console.log(`\nWrote ${scenes.length} images to ${OUT}`);
+function json(route, body, status = 200) {
+  return route.fulfill({
+    status,
+    contentType: "application/json",
+    headers: { "cache-control": "no-store" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function mockAdminApi(context) {
+  await context.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+
+    if (request.method() === "GET" && path === "/api/me") return json(route, operator);
+    if (request.method() === "GET" && path === "/api/stats") {
+      return json(route, { tenants: 2, pendingSubmissions: 2, captures: 1931, outputQueues: 5 });
+    }
+    if (request.method() === "GET" && path === "/api/submissions") {
+      const status = url.searchParams.get("status");
+      return json(route, status ? submissions.filter((item) => item.status === status) : submissions);
+    }
+    if (request.method() === "GET" && path === "/api/tenants") return json(route, tenants);
+    if (request.method() === "GET" && path === `/api/tenants/${tenantId}`) return json(route, tenantDetail);
+    if (request.method() === "GET" && path === `/api/tenants/${secondTenantId}`) {
+      return json(route, { ...tenantDetail, ...tenants[1], port: 9476, recentCaptures: captures.slice(0, 2) });
+    }
+    if (request.method() === "GET" && path === `/api/tenants/${tenantId}/captures`) return json(route, captures);
+    if (request.method() === "GET" && path === `/api/tenants/${secondTenantId}/captures`) return json(route, captures.slice(0, 2));
+    if (request.method() === "POST" && path === "/api/connection/test") {
+      return json(route, { success: true, code: "OK", message: "Sign-on succeeded using SecureAS400 over TLS.", elapsedMillis: 684 });
+    }
+    if (request.method() === "POST" && /\/api\/submissions\/[^/]+\/(approve|reject)$/.test(path)) {
+      return json(route, { ok: true });
+    }
+
+    return json(route, { error: "fixture_missing", message: `No media fixture for ${request.method()} ${path}` }, 404);
+  });
+}
+
+async function waitForPreview(server, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (server.exitCode !== null) throw new Error(`Vite preview exited early with code ${server.exitCode}`);
+    try {
+      const response = await fetch(origin);
+      if (response.ok) return;
+    } catch {
+      // Preview is still starting.
+    }
+    await delay(250);
+  }
+  throw new Error(`Timed out waiting for ${origin}`);
+}
+
+async function stopPreview(server) {
+  if (!server || server.exitCode !== null) return;
+  server.kill("SIGTERM");
+  await Promise.race([once(server, "exit"), delay(5_000)]);
+  if (server.exitCode === null) server.kill("SIGKILL");
+}
+
+function delay(ms) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+async function captureView(scene) {
+  const errors = [];
+  // Give every scene a fresh browser process. Reusing Chromium across several
+  // high-DPI screenshots can leave a stale compositor tile behind on some
+  // headless macOS hosts (most visible over the translucent left sidebar).
+  const browser = await chromium.launch({ args: ["--disable-gpu"] });
+  const context = await browser.newContext({
+    viewport: scene.viewport,
+    deviceScaleFactor: scene.scale ?? 1.5,
+    colorScheme: "light",
+    reducedMotion: "reduce",
+    locale: "en-US",
+    timezoneId: "America/Indiana/Indianapolis",
+    serviceWorkers: "block",
+  });
+  await mockAdminApi(context);
+  const page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console.error: ${message.text()}`);
+  });
+
+  try {
+    await page.goto(`${origin}${scene.path}`, { waitUntil: "networkidle" });
+    await page.locator("h1").first().waitFor({ state: "visible" });
+    await page.addStyleTag({
+      content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}",
+    });
+    if (scene.prepare) await scene.prepare(page);
+    await page.evaluate(() => document.fonts.ready);
+    await delay(150);
+
+    if (errors.length) throw new Error(`${scene.name} emitted browser errors:\n${errors.join("\n")}`);
+    await page.screenshot({ path: resolve(output, `${scene.name}.png`), fullPage: false });
+    console.log(`  ✓ ${scene.name}.png (${scene.viewport.width}×${scene.viewport.height})`);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
+const scenes = [
+  { name: "admin-dashboard", path: "/dashboard", viewport: { width: 1440, height: 900 } },
+  {
+    name: "admin-submissions",
+    path: "/submissions?status=PENDING",
+    viewport: { width: 1440, height: 960 },
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Inspect" }).first().click();
+      await page.getByText("securely referenced").first().waitFor();
+    },
+  },
+  { name: "admin-captures", path: `/captures?tenant=${tenantId}`, viewport: { width: 1440, height: 900 } },
+  {
+    name: "admin-test-connection",
+    path: "/test-connection",
+    viewport: { width: 1440, height: 900 },
+    prepare: async (page) => {
+      await page.getByLabel("IBM i host").fill("ibmi.demo.example");
+      await page.getByLabel("User profile").fill("RSPOOL");
+      await page.getByLabel("Password").fill("demo-password-not-a-secret");
+      await page.getByRole("button", { name: "Test connection" }).click();
+      await page.getByText("Sign-on succeeded", { exact: true }).waitFor();
+    },
+  },
+  { name: "admin-mobile", path: "/dashboard", viewport: { width: 430, height: 932 }, scale: 2 },
+];
+
+const preview = spawn("npm", ["run", "preview", "--", "--host", "127.0.0.1", "--port", "4173", "--strictPort"], {
+  cwd: frontend,
+  env: { ...process.env, NO_COLOR: "1" },
+  stdio: ["ignore", "pipe", "pipe"],
+});
+let previewLog = "";
+preview.stdout.on("data", (chunk) => { previewLog += chunk.toString(); });
+preview.stderr.on("data", (chunk) => { previewLog += chunk.toString(); });
+
+try {
+  await waitForPreview(preview);
+  console.log("Capturing the production RetroSpool console with deterministic demo fixtures:");
+  for (const scene of scenes) await captureView(scene);
+  console.log(`\nWrote ${scenes.length} real-app screenshots to ${output}`);
+} catch (error) {
+  if (previewLog.trim()) console.error(`\nVite preview output:\n${previewLog.trim()}`);
+  throw error;
+} finally {
+  await stopPreview(preview);
+}

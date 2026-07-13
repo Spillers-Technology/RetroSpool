@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Greenbar paper in light, 5250 phosphor terminal in dark — the same palette as the
+ * marketing site so the product listing and the real app read as one thing.
+ */
+:root {
+  --paper: #fdfdf8;
+  --bar: #dcedd8;
+  --ink: #1d2b23;
+  --ink-soft: #43584b;
+  --accent: #1c6b3c;
+  --rule: #9dbfa6;
+  --card: rgba(255, 255, 255, 0.72);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0a0f0b;
+    --bar: #0e1810;
+    --ink: #7dde9a;
+    --ink-soft: #4e9a68;
+    --accent: #a6f4be;
+    --rule: #1e3a28;
+    --card: rgba(10, 22, 14, 0.6);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: "Courier New", Courier, ui-monospace, monospace;
+  /* Faint greenbar banding, like fanfold paper. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2.25rem,
+    color-mix(in srgb, var(--bar) 55%, transparent) 2.25rem,
+    color-mix(in srgb, var(--bar) 55%, transparent) 4.5rem
+  );
+  background-attachment: fixed;
+}
+
+/* Thin sprocket-hole rule down the left edge, echoing continuous-feed paper. */
+.sprocket {
+  background-image: radial-gradient(circle, var(--rule) 0 1.5px, transparent 2px);
+  background-size: 100% 1.5rem;
+  background-repeat: repeat-y;
+}
