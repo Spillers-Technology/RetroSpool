@@ -82,7 +82,7 @@ docker run --rm \
   gradle:8.10.2-jdk21 gradle integrationTest --no-daemon --console=plain
 
 # Run the app jar against Postgres (DB_URL/DB_USER/DB_PASSWORD env)
-java -jar build/libs/retrospool-0.0.3.jar
+java -jar build/libs/retrospool-0.1.0.jar --retrospool.admin.dev-user=local-admin
 # or build the production image:
 docker build -t retrospool .
 ```

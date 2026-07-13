@@ -6,12 +6,12 @@ an ACS session — and turns spool files into PDFs.
 
 Two ways to run it. If you have Docker, use Docker — it's one file and one command.
 
-> **Where the project is today (v0.0.3, pre-1.0):** the capture engine — format
+> **Where the project is today (v0.1.0, pre-1.0):** the capture engine — format
 > sniffing, PCL splitting, PCL→PDF rendering, tenant-scoped storage — is built and
-> verified end-to-end, and you can test-connect to your IBM i right now. The scheduled
-> queue poller, export fan-out (S3/SFTP/FTPS), and the web admin UI are the next
-> phases — see the [roadmap](README.md#status). Kick the tires now; don't point it at
-> production quite yet.
+> verified end-to-end, and the authenticated admin console now covers submissions,
+> tenants, captures, and Test Connection. The scheduled queue poller, export fan-out
+> (S3/SFTP/FTPS), and public HOD intake remain planned — see the
+> [roadmap](README.md#status). Kick the tires now; don't point it at production quite yet.
 
 ---
 
@@ -21,13 +21,16 @@ You need: [Docker](https://docs.docker.com/get-docker/) with Compose. That's it.
 
 ```bash
 mkdir retrospool && cd retrospool
-curl -fsSLO https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/v0.0.3/quickstart/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/Spillers-Technology/RetroSpool/v0.1.0/quickstart/docker-compose.yml
 docker compose up -d
 ```
 
 This pulls RetroSpool from `ghcr.io/spillers-technology/retrospool` and starts
 everything it needs (PostgreSQL, object storage, the PDF renderer) — all internal,
-nothing exposed except the API on port 8080.
+nothing exposed except Retrospool on localhost port 8080. Open
+<http://localhost:8080> for the local admin console; the quickstart provides a
+localhost-only development identity. Production deployments must use the Authentik
+boundary described in [README.md](README.md#admin-authentication).
 
 Like to live dangerously? The same thing as one line, with a health-check wait and
 friendlier output ([read it first](quickstart/get.sh), it's short):
@@ -75,18 +78,18 @@ have to read a lawyer's opinion on. Temurin means you never have to think about 
 
 ```bash
 # 1. Download the zip and its checksum from the releases page, then verify:
-sha256sum -c retrospool-0.0.3.zip.sha256        # Linux
-shasum -a 256 -c retrospool-0.0.3.zip.sha256    # macOS
+sha256sum -c retrospool-0.1.0.zip.sha256        # Linux
+shasum -a 256 -c retrospool-0.1.0.zip.sha256    # macOS
 # Windows (PowerShell): compare the two outputs
-#   Get-FileHash retrospool-0.0.3.zip; Get-Content retrospool-0.0.3.zip.sha256
+#   Get-FileHash retrospool-0.1.0.zip; Get-Content retrospool-0.1.0.zip.sha256
 
 # 2. Unzip. The bundle includes a docker-compose.yml for the supporting services
 #    (PostgreSQL, MinIO, and the PDF renderer built from the bundled source):
-cd retrospool-0.0.3
+cd retrospool-0.1.0
 docker compose up -d
 
 # 3. Run it:
-java -jar retrospool-0.0.3.jar
+java -jar retrospool-0.1.0.jar --retrospool.admin.dev-user=local-admin
 ```
 
 The app reads its configuration from environment variables — `DB_URL`, `DB_USER`,
@@ -100,7 +103,7 @@ at all.
 
 | Piece | What it does |
 |---|---|
-| `ghcr.io/spillers-technology/retrospool` | The service: REST API + capture engine (Spring Boot, Java 21) |
+| `ghcr.io/spillers-technology/retrospool` | Admin console, REST API, and capture engine (Spring Boot, Java 21 + React) |
 | PostgreSQL 16 | Capture records, tenants, audit trail (schema managed by Flyway) |
 | MinIO | S3-compatible landing store for the captured spool files |
 | Render sidecar | GhostPDL `gpcl6` behind a tiny HTTP shim — turns PCL into PDF |

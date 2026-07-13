@@ -12,15 +12,21 @@
 | 3 | Capture pipeline (format → split → store → **render**) | **done** (incl. PCL→PDF via GhostPDL sidecar, D-018) |
 | 4 | Poller wiring (first end-to-end) | not started |
 | 5 | Export destinations | not started |
-| 6 | Admin REST API + audit | not started |
-| 6.5 | Submission flow (HOD import + approval) | not started |
-| 7 | React frontend | not started |
+| 6 | Admin REST API + audit | **v0.1 slice done** (identity/stats, review, tenant reads, capture download; destination CRUD pending) |
+| 6.5 | Submission flow (HOD import + approval) | partial (admin approval done; public import/intake and destination promotion pending) |
+| 7 | React frontend | **admin console done** (public submission page and destination editor pending) |
 
 **v0.0.1 status (2026-06-27):** verified end-to-end in Docker — app boots, connects to
 Postgres 16, Flyway applies all tables; `/api/health` + `/actuator/health` UP;
 `POST /api/connection/test` exercises the real JTOpen signon path (returns
 `CONNECTIVITY_ERROR` against an unreachable host). See docs/decisions.md D-015.
 Live `OK` awaits operator host/creds/truststore.
+
+**v0.1.0 status (2026-07-12):** delivered the Authentik-protected operator console
+and its admin APIs (D-021/D-022): dashboard, existing-submission review and tenant
+promotion, tenant detail, capture browsing/download, audit readout, and Test Connection.
+This is deliberately not the poller/export/public-intake milestone: Phases 4–5 remain
+unstarted, and the public half of Phase 6.5 remains planned.
 
 **v0.0.1 (MVP cut)** = Phase 0 + Phase 1: prove the connection mechanism and ship a
 one-click **Test Connection**. See "v0.0.1 reality" below.
@@ -39,7 +45,7 @@ arrive. v0.0.1 therefore ships:
 
 - the full connection mechanism (`As400Factory` with the non-negotiable flags,
   `TruststoreLoader`),
-- a **Test Connection** action wired end-to-end (submission page → backend signon →
+- a **Test Connection** action wired end-to-end (HTTP API → backend signon →
   real success/failure + error string),
 - everything unit-testable around it green.
 
@@ -103,23 +109,41 @@ Boot a Spring Boot app that runs Flyway against Postgres and serves health.
 - **Exit:** capture flows to S3 then SFTP; forced failure retries then FAILED.
 
 ### Phase 6 — Admin REST API + audit
-- Controllers: Tenant, ExportDestination, SpoolCapture, Health.
-- `AuditLogger` → `audit_event`. OIDC resource-server `SecurityConfig`.
-- Write-only secret handling at the boundary.
-- Tenant-scoping enforced as a test gate.
-- **Exit:** credentialed admin API scoped per tenant, audit recorded.
+- **Delivered in v0.1.0:** current-identity and stats endpoints; submission
+  list/detail/approve/reject; tenant list/detail with queue, destination, recent capture,
+  and audit read views; tenant-scoped original/rendered capture download.
+- **Delivered in v0.1.0:** Authentik forwarded-header pre-authentication (D-022), JSON
+  `401` responses, local-only dev identity, cookie-backed CSRF protection for admin
+  mutations, and audited submission decisions.
+- Tenant-scoping remains enforced as a test gate; capture downloads look up tenant and
+  capture ids together.
+- **Remaining:** export-destination CRUD/test actions, broader configuration mutation,
+  and audit coverage for those future writes.
+- **v0.1 exit:** credentialed read/review API shipped; full original Phase 6 mutation
+  scope remains open.
 
 ### Phase 6.5 — Submission flow
-- `HodFileParser` (ACS workstation XML → draft; port + device name informational only).
-- Public submission controller + `submission` table; collects SFTP + IBM i passwords.
-- `POST /api/tenants/import-hod` returns a **draft** (never auto-creates).
-- Approval promotes submission → tenant + export_destination + secrets.
-- **Exit:** end-to-end submission → review → approval → active tenant.
+- **Delivered in v0.1.0:** admin review of existing pending rows and explicit
+  approve/reject; approval promotes the draft's tenant fields and IBM i secret reference
+  and records the reviewer/audit event.
+- **Remaining:** `HodFileParser` (ACS workstation XML → draft; port + device name
+  informational only) and the public submission controller/page that collects SFTP +
+  IBM i passwords. `POST /api/tenants/import-hod` will return a **draft** and never
+  auto-create a tenant.
+- **Remaining:** extend approval to create `export_destination` rows and carry their
+  secret references.
+- **Remaining/exit:** public end-to-end submission → review → approval → active tenant
+  plus destination/secret promotion. The table exists, but v0.1.0 has no public creator.
 
 ### Phase 7 — React frontend
-Vite + TS + TanStack Query + Tailwind. Submission page; admin tenants list; tenant detail
-tabs; submission review/approval; captures list + download; export-destination editor
-with conditional fields + test. OIDC; write-only credential UX.
+**Delivered in v0.1.0:** Vite + React 18 + TypeScript + TanStack Query + Router +
+Tailwind admin SPA. Dashboard; submission filter/detail/approval; tenants list; tenant
+detail tabs; captures list with original/PDF downloads; Test Connection; responsive
+greenbar-themed shell and explicit signed-out state. The SPA is built into the Spring
+Boot jar/container and uses same-origin authenticated APIs.
+
+**Remaining:** standalone public HOD submission page and export-destination editor with
+conditional fields, test actions, and write-only credential replacement UX.
 
 ## Cross-cutting (threaded, not a phase)
 - Dependency/architecture tests = licensing + tenant-isolation CI gates.

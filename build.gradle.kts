@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.retrospool"
-version = "0.0.3"
+version = "0.1.0"
 
 java {
     toolchain {
@@ -30,6 +30,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // Admin surface auth (D-022): the app trusts the Authentik outpost's forward-auth
+    // identity headers via a pre-authenticated filter — no second OIDC round-trip.
+    implementation("org.springframework.boot:spring-boot-starter-security")
 
     // --- Migrations + DB (Apache-2.0 / PostgreSQL License) ---
     implementation("org.flywaydb:flyway-core")

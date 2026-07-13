@@ -60,8 +60,11 @@ submission (
   resulting_tenant_id uuid         -- set on approval
 );
 ```
-Approval copies the draft + secrets into `tenant` (+ `export_destination`). Nothing
-auto-activates; approval is the mandatory human-review gate.
+The completed submission flow will copy the draft + secrets into `tenant` and
+`export_destination`. In v0.1.0, approval creates the tenant and carries its IBM i
+secret reference; destination creation and SFTP-secret promotion remain part of the
+planned public intake slice. Nothing auto-activates; approval is the mandatory
+human-review gate.
 
 ### spool_watermark
 ```sql

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to (re)build and attach assets for, e.g. v0.0.2"
+        description: "Existing tag to (re)build and attach assets for, e.g. v0.1.0"
         required: true
 
 permissions:
@@ -29,7 +29,26 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # The release zip contains the runnable jar, so stage the independently
+      # verified SPA bundle where Spring Boot will package it as static content.
+      - name: Stage frontend in Spring Boot resources
+        run: |
+          mkdir -p src/main/resources/static
+          cp -R frontend/dist/. src/main/resources/static/
 
       # Runs unit tests + the licenseGate check; integration tests stay out of release builds.
       - name: Build
