@@ -49,13 +49,31 @@ export interface OutputQueueView {
   retentionPolicy: string | null;
 }
 
+export type DestinationType = "S3" | "SFTP" | "FTPS";
+
 export interface ExportDestinationView {
   id: string;
-  type: "S3" | "SFTP" | "FTPS";
+  type: DestinationType;
   name: string;
   config: Record<string, unknown> | null;
   secretSet: boolean;
   enabled: boolean;
+}
+
+export interface CreateDestinationRequest {
+  type: DestinationType;
+  name: string;
+  config: Record<string, unknown>;
+  /** Write-only. The API response never contains this value or its secret reference. */
+  password?: string;
+}
+
+export interface UpdateDestinationRequest {
+  name?: string;
+  config?: Record<string, unknown>;
+  enabled?: boolean;
+  /** Write-only rotation. Omit to retain the existing secret. */
+  password?: string;
 }
 
 export type DetectedFormat = "PDF" | "PCL" | "TEXT" | "UNKNOWN";

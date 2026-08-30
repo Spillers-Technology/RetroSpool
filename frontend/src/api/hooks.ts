@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
   CaptureView,
+  CreateDestinationRequest,
+  ExportDestinationView,
   Me,
   ParsedSession,
   Stats,
@@ -12,6 +14,7 @@ import type {
   TenantSummary,
   TestConnectionRequest,
   TestConnectionResult,
+  UpdateDestinationRequest,
 } from "./types";
 
 export function useMe() {
@@ -62,6 +65,46 @@ export function useTenant(id: string | undefined) {
     queryKey: ["tenant", id],
     queryFn: () => api.get<TenantDetail>(`/api/tenants/${id}`),
     enabled: !!id,
+  });
+}
+
+function invalidateDestinationQueries(qc: ReturnType<typeof useQueryClient>, tenantId: string) {
+  qc.invalidateQueries({ queryKey: ["tenant", tenantId] });
+  qc.invalidateQueries({ queryKey: ["tenants"] });
+}
+
+export function useCreateDestination(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (request: CreateDestinationRequest) =>
+      api.post<ExportDestinationView>(`/api/tenants/${tenantId}/destinations`, request),
+    onSuccess: () => invalidateDestinationQueries(qc, tenantId),
+  });
+}
+
+export function useUpdateDestination(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, request }: { id: string; request: UpdateDestinationRequest }) =>
+      api.put<ExportDestinationView>(`/api/tenants/${tenantId}/destinations/${id}`, request),
+    onSuccess: () => invalidateDestinationQueries(qc, tenantId),
+  });
+}
+
+export function useSetDestinationEnabled(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      api.patch<ExportDestinationView>(`/api/tenants/${tenantId}/destinations/${id}/enabled`, { enabled }),
+    onSuccess: () => invalidateDestinationQueries(qc, tenantId),
+  });
+}
+
+export function useDeleteDestination(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/api/tenants/${tenantId}/destinations/${id}`),
+    onSuccess: () => invalidateDestinationQueries(qc, tenantId),
   });
 }
 

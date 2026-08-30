@@ -8,13 +8,13 @@
 |-------|-------|-------|
 | 0 | Repo & toolchain | **done** (boot + Flyway verified) |
 | 1 | JTOpen connection mechanism + Test Connection | **done** (mechanism wired; live-green pending creds) |
-| 2 | Persistence model & migrations | **done** (V1+V2, JPA entities/repos, SecretResolver, isolation gate) |
+| 2 | Persistence model & migrations | **done** (V1–V4, JPA entities/repos, SecretResolver, isolation gate) |
 | 3 | Capture pipeline (format → split → store → **render**) | **done** (incl. PCL→PDF via GhostPDL sidecar, D-018) |
 | 4 | Poller wiring (first end-to-end) | not started |
 | 5 | Export destinations | not started |
-| 6 | Admin REST API + audit | **v0.1 slice done** (identity/stats, review, tenant reads, capture download; destination CRUD pending) |
+| 6 | Admin REST API + audit | **destination CRUD done** (identity/stats, review, tenant reads, capture download, audited destination mutation) |
 | 6.5 | Submission flow (HOD import + approval) | **done** (v0.2.0: `WsHodParser`, public intake, approval → destination/secret promotion) |
-| 7 | React frontend | **admin console + public `/submit` page done** (in-console destination editor pending) |
+| 7 | React frontend | **admin console + public `/submit` + destination editor done** (destination connection test pending) |
 
 **v0.0.1 status (2026-06-27):** verified end-to-end in Docker — app boots, connects to
 Postgres 16, Flyway applies all tables; `/api/health` + `/actuator/health` UP;
@@ -126,8 +126,12 @@ Boot a Spring Boot app that runs Flyway against Postgres and serves health.
   mutations, and audited submission decisions.
 - Tenant-scoping remains enforced as a test gate; capture downloads look up tenant and
   capture ids together.
-- **Remaining:** export-destination CRUD/test actions, broader configuration mutation,
-  and audit coverage for those future writes.
+- **Delivered after v0.2.0 (D-025):** audited export-destination create/update,
+  enable/disable, and safe delete. Configs are validated by type; passwords are accepted
+  only for SFTP/FTPS and stored via the write-only secret backend. Every row lookup uses
+  `(tenantId, destinationId)` and cross-tenant ids return 404.
+- **Remaining:** destination connection-test actions and broader tenant/queue
+  configuration mutation.
 - **v0.1 exit:** credentialed read/review API shipped; full original Phase 6 mutation
   scope remains open.
 
@@ -156,8 +160,11 @@ Boot jar/container and uses same-origin authenticated APIs.
 **Delivered in v0.2.0:** the standalone public `/submit` page (WS/HOD upload → parsed-draft
 review → Test Connection → submit → confirmation), rendered outside the admin identity gate.
 
-**Remaining:** in-console export-destination editor with conditional fields, test actions,
-and write-only credential replacement UX.
+**Delivered after v0.2.0 (D-025):** the in-console export-destination editor with
+conditional S3/SFTP/FTPS fields, add/edit/delete/pause controls, and write-only password
+replacement (the current secret is represented only as set/not-set and is never prefilled).
+
+**Remaining:** destination connection-test actions.
 
 ## Cross-cutting (threaded, not a phase)
 - Dependency/architecture tests = licensing + tenant-isolation CI gates.

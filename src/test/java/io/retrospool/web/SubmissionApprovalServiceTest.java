@@ -115,7 +115,9 @@ class SubmissionApprovalServiceTest {
         assertThat(destination.getName()).isEqualTo("Downstream");
         assertThat(destination.getSecretRef()).isEqualTo("db:33333333-3333-3333-3333-333333333333");
         assertThat(mapper.readTree(destination.getConfig()).get("host").asText()).isEqualTo("sftp.example.com");
-        assertThat(mapper.readTree(destination.getConfig()).get("remotePath").asText()).isEqualTo("/in/reports");
+        assertThat(mapper.readTree(destination.getConfig()).get("remote_path").asText()).isEqualTo("/in/reports");
+        assertThat(mapper.readTree(destination.getConfig()).get("host_key_fingerprint").asText())
+                .isEqualTo("SHA256:abc");
         assertThat(destination.getConfig()).doesNotContain("33333333");
     }
 

@@ -20,7 +20,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Flyway (V1+V2) against real Postgres 16 + entity round-trips for the exotic
+ * Flyway (V1-V4) against real Postgres 16 + entity round-trips for the exotic
  * mappings (text[] arrays, jsonb) + the load-bearing dedup constraint (D-008).
  */
 @Tag("integration")
@@ -49,6 +49,10 @@ class PersistenceIntegrationTest {
     CaptureRepository captures;
     @Autowired
     StoredSecretRepository secrets;
+    @Autowired
+    ExportDestinationRepository destinations;
+    @Autowired
+    ExportAttemptRepository exportAttempts;
 
     @Test
     void secretEnvelopeRoundTripsAsBytea() {
@@ -147,5 +151,25 @@ class PersistenceIntegrationTest {
                 .orElseThrow();
         assertThat(reloaded.getRenderStatus()).isEqualTo(RenderStatus.SUCCESS);
         assertThat(reloaded.getRenderedStorageKey()).isEqualTo("c/k1.pcl.pdf");
+    }
+
+    @Test
+    void destinationDeleteCannotCascadeAwayAttemptHistory() {
+        Tenant tenant = tenants.saveAndFlush(new Tenant("D", "h", "u"));
+        TenantOutputQueue queue = queues.saveAndFlush(
+                new TenantOutputQueue(tenant.getId(), "QGPL", "PRTQ"));
+        Capture capture = new Capture(tenant.getId(), queue.getId(),
+                DetectedFormat.PDF, 0, "e".repeat(64), 10);
+        capture.assignStorageKey("d/k1.pdf");
+        captures.saveAndFlush(capture);
+
+        ExportDestination destination = destinations.saveAndFlush(new ExportDestination(
+                tenant.getId(), DestinationType.S3, "Archive",
+                "{\"bucket\":\"reports\",\"region\":\"us-east-1\"}"));
+        exportAttempts.saveAndFlush(new ExportAttempt(capture.getId(), destination.getId()));
+
+        // Must be last: PostgreSQL aborts this test transaction after the FK violation.
+        assertThatThrownBy(() -> destinations.deleteAndFlush(destination))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

@@ -118,17 +118,21 @@ export_destination (
   config jsonb,                   -- S3: bucket/prefix/region/endpoint/pathStyleAccess
                                   -- SFTP: host/port/username/remote_path/host_key_fingerprint
                                   -- FTPS: host/port/username/remote_path/implicit_tls
-  secret_ref text,                -- SFTP: password ref (password auth, per decision)
+  secret_ref text,                -- SFTP/FTPS password ref (write-only)
   enabled boolean
 );
 ```
+
+V4 normalizes legacy approval-created camelCase config keys to the canonical
+exporter-facing keys above. Public submission DTOs remain camelCase; the approval boundary
+performs the translation. Destination deletes are guarded by the attempt FK below.
 
 ### export_attempt
 ```sql
 export_attempt (
   id uuid pk,
   capture_id uuid fk,
-  export_destination_id uuid fk,
+  export_destination_id uuid fk, -- ON DELETE RESTRICT: delivery history is retained
   status text,                    -- PENDING | SUCCESS | FAILED
   attempt_count int,              -- exponential backoff, max 5 then FAILED
   last_error text,
