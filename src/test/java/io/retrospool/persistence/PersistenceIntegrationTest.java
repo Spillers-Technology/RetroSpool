@@ -169,7 +169,12 @@ class PersistenceIntegrationTest {
         exportAttempts.saveAndFlush(new ExportAttempt(capture.getId(), destination.getId()));
 
         // Must be last: PostgreSQL aborts this test transaction after the FK violation.
-        assertThatThrownBy(() -> destinations.deleteAndFlush(destination))
+        // JpaRepository has no per-entity deleteAndFlush; mirror ExportDestinationService's
+        // own delete()-then-flush() so the FK violation surfaces here, not on commit.
+        assertThatThrownBy(() -> {
+                    destinations.delete(destination);
+                    destinations.flush();
+                })
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

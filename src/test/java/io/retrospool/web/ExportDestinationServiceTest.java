@@ -64,8 +64,12 @@ class ExportDestinationServiceTest {
         mapper = new ObjectMapper();
         service = new ExportDestinationService(destinations, attempts, tenants, audit, secretWriter, mapper);
         tenantId = UUID.randomUUID();
-        when(destinations.save(any(ExportDestination.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(audit.save(any(AuditEvent.class))).thenAnswer(inv -> inv.getArgument(0));
+        // No blanket save()/audit.save() stubs here (unlike a naive shared setup): the
+        // service never reads what save() returns (it returns the entity it was handed),
+        // and several tests below short-circuit before either mock is touched at all —
+        // under MockitoExtension's default strict stubs, an unused blanket stub fails
+        // *that* test with UnnecessaryStubbingException. Stub only where a test needs
+        // it, same convention as SubmissionApprovalServiceTest.
     }
 
     // --- create -------------------------------------------------------------------

@@ -147,6 +147,11 @@ function DestinationsTab({ tenant }: { tenant: TenantDetail }) {
       });
     }
     setEditor(null);
+    // The submitted request (including a plaintext password, when set) stays
+    // cached as this mutation's `variables` until reset — it must not linger
+    // in memory past the moment the write completed (D-012/D-023: write-only,
+    // not "write-only until the next unrelated render").
+    resetMutations();
   }
 
   function remove(destination: ExportDestinationView) {
