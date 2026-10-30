@@ -24,7 +24,7 @@ All notable changes to retrospool are documented here. The format follows
   `host_key_fingerprint`, and `implicit_tls`); V4 normalizes rows created by the earlier
   approval path, while the public submission request remains camelCase.
 - A destination with `export_attempt` history must be paused instead of deleted. V4
-  replaces the cascading destination FK with `ON DELETE RESTRICT`, making the service's
+  replaces the cascading destination FK with `ON DELETE NO ACTION`, making the service's
   409 policy race-safe and preserving delivery history.
 
 ### Security

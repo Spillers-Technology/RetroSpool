@@ -156,7 +156,7 @@ public class ExportDestinationService {
         }
         try {
             destinations.delete(destination);
-            // V4 changes the database FK to ON DELETE RESTRICT. Flushing here turns a
+            // V4 changes the database FK to ON DELETE NO ACTION. Flushing here turns a
             // concurrent attempt insert into the same deliberate 409 instead of a late
             // transaction-commit failure (and, critically, never erases attempt history).
             destinations.flush();

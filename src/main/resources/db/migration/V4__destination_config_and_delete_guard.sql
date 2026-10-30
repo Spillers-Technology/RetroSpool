@@ -41,14 +41,18 @@ WHERE type = 'FTPS'
   AND (config ? 'remotePath' OR config ? 'implicitTls');
 
 -- Postgres never auto-indexes a referencing FK column. Both the delete-guard's own
--- existsByExportDestinationId check and every RESTRICT enforcement below scan this
+-- existsByExportDestinationId check and every FK check below scan this
 -- column; without an index each is a full table scan against delivery history, which
 -- only grows. Created before the FK churn so the ALTERs below aren't scanning unindexed.
 CREATE INDEX IF NOT EXISTS idx_export_attempt_destination
     ON export_attempt (export_destination_id);
 
 -- Delivery history is operational evidence. The CRUD service blocks deletes after an
--- attempt exists; RESTRICT makes that guarantee race-safe and protects direct SQL too.
+-- attempt exists; the FK makes that guarantee race-safe and protects direct SQL too.
+-- NO ACTION, not RESTRICT: RESTRICT is checked row by row mid-cascade, so deleting a
+-- tenant (which cascades to both its destinations and, via capture, their attempts)
+-- could fail. NO ACTION checks at the end of the statement, so the cascade completes,
+-- while deleting a destination that still has history fails exactly as before.
 ALTER TABLE export_attempt
     DROP CONSTRAINT export_attempt_export_destination_id_fkey;
 
@@ -56,4 +60,4 @@ ALTER TABLE export_attempt
     ADD CONSTRAINT export_attempt_export_destination_id_fkey
         FOREIGN KEY (export_destination_id)
         REFERENCES export_destination(id)
-        ON DELETE RESTRICT;
+        ON DELETE NO ACTION;

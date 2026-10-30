@@ -299,7 +299,7 @@ was explicit.
 
 Deletion is hard-delete only for a destination with no attempt history. Once any
 `export_attempt` exists, the API returns 409 and directs the operator to pause the
-destination. V4 changes the FK from cascade to `ON DELETE RESTRICT`, so a concurrent
+destination. V4 changes the FK from cascade to `ON DELETE NO ACTION`, so a concurrent
 attempt or direct SQL cannot silently erase delivery evidence. Secret rotation replaces
 the destination's reference; the encrypted store has no deletion convention, so the old
 secret row remains orphaned rather than inventing lifecycle policy here.
