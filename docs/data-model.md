@@ -132,7 +132,7 @@ performs the translation. Destination deletes are guarded by the attempt FK belo
 export_attempt (
   id uuid pk,
   capture_id uuid fk,
-  export_destination_id uuid fk, -- ON DELETE RESTRICT: delivery history is retained
+  export_destination_id uuid fk, -- ON DELETE NO ACTION: delivery history is retained
   status text,                    -- PENDING | SUCCESS | FAILED
   attempt_count int,              -- exponential backoff, max 5 then FAILED
   last_error text,
