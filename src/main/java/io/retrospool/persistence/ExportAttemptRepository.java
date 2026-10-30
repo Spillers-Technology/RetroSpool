@@ -11,4 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ExportAttemptRepository extends JpaRepository<ExportAttempt, UUID> {
 
     List<ExportAttempt> findByCaptureId(UUID captureId);
+
+    /** Used to decide hard-delete vs. block when an admin removes a destination (D-004). */
+    boolean existsByExportDestinationId(UUID exportDestinationId);
 }

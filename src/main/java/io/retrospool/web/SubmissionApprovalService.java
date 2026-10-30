@@ -117,10 +117,10 @@ public class SubmissionApprovalService {
             config.put("username", sftp.get("username").asText().trim());
         }
         if (sftp.hasNonNull("remotePath")) {
-            config.put("remotePath", sftp.get("remotePath").asText().trim());
+            config.put("remote_path", sftp.get("remotePath").asText().trim());
         }
         if (sftp.hasNonNull("hostKeyFingerprint")) {
-            config.put("hostKeyFingerprint", sftp.get("hostKeyFingerprint").asText().trim());
+            config.put("host_key_fingerprint", sftp.get("hostKeyFingerprint").asText().trim());
         }
 
         ExportDestination destination =

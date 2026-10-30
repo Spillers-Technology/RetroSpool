@@ -1,6 +1,8 @@
 package io.retrospool.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import io.retrospool.persistence.AuditEvent;
 import io.retrospool.persistence.Capture;
 import io.retrospool.persistence.ExportDestination;
@@ -160,6 +162,27 @@ public final class AdminDtos {
     }
 
     public record ReviewRequest(String note) {
+    }
+
+    /**
+     * Create an export destination (D-004/D-005). {@code password} is write-only
+     * (D-012/D-023): accepted here, never echoed back — only {@link ExportDestinationView#secretSet()}
+     * reflects whether one is on file.
+     */
+    public record CreateDestinationRequest(
+            @NotBlank String type, @NotBlank String name, JsonNode config, String password) {
+    }
+
+    /**
+     * Update an export destination. Every field is optional so a caller can send just
+     * what changed; {@code password}, when present, rotates the stored secret_ref via
+     * {@link io.retrospool.secrets.SecretWriter} exactly like create.
+     */
+    public record UpdateDestinationRequest(String name, JsonNode config, Boolean enabled, String password) {
+    }
+
+    /** Body for the enable/disable toggle endpoint. */
+    public record EnabledRequest(@NotNull Boolean enabled) {
     }
 
     static AuditEventView auditOf(AuditEvent e, JsonNode payload) {

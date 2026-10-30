@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { downloadUrl } from "../api/client";
-import { useTenant } from "../api/hooks";
-import type { TenantDetail } from "../api/types";
+import {
+  useCreateDestination,
+  useDeleteDestination,
+  useSetDestinationEnabled,
+  useTenant,
+  useUpdateDestination,
+} from "../api/hooks";
+import type { DestinationType, ExportDestinationView, TenantDetail } from "../api/types";
 import PageHeader from "../components/PageHeader";
-import { Badge, Card, EmptyState, ErrorState, Spinner, formatBytes, formatDate } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorState, Spinner, formatBytes, formatDate } from "../components/ui";
 
 type Tab = "connection" | "queues" | "destinations" | "captures" | "audit";
 const TABS: Array<{ id: Tab; label: string }> = [
@@ -94,8 +100,404 @@ function QueuesTab({ tenant }: { tenant: TenantDetail }) {
 }
 
 function DestinationsTab({ tenant }: { tenant: TenantDetail }) {
-  if (!tenant.exportDestinations.length) return <Card><EmptyState>No export destinations configured.</EmptyState></Card>;
-  return <div className="grid gap-4 lg:grid-cols-2">{tenant.exportDestinations.map((d) => <Card key={d.id} title={d.name} actions={<div className="flex gap-2"><Badge tone={d.enabled ? "green" : "gray"}>{d.enabled ? "enabled" : "paused"}</Badge><Badge>{d.type}</Badge></div>}><dl className="space-y-2 text-xs">{Object.entries(d.config ?? {}).map(([key, value]) => <div key={key} className="flex justify-between gap-5 border-b border-dashed border-rule/50 pb-2"><dt className="text-ink-soft">{key}</dt><dd className="break-all text-right font-bold text-ink">{String(value)}</dd></div>)}<div className="flex justify-between gap-5"><dt className="text-ink-soft">Credential</dt><dd className={d.secretSet ? "font-bold text-accent" : "text-ink-soft"}>{d.secretSet ? "● set" : "○ none"}</dd></div></dl></Card>)}</div>;
+  const createDestination = useCreateDestination(tenant.id);
+  const updateDestination = useUpdateDestination(tenant.id);
+  const setEnabled = useSetDestinationEnabled(tenant.id);
+  const deleteDestination = useDeleteDestination(tenant.id);
+  const [editor, setEditor] = useState<"new" | string | null>(null);
+
+  const editing = editor && editor !== "new"
+    ? tenant.exportDestinations.find((destination) => destination.id === editor) ?? null
+    : null;
+  const mutationError = createDestination.error
+    ?? updateDestination.error
+    ?? setEnabled.error
+    ?? deleteDestination.error;
+
+  function resetMutations() {
+    createDestination.reset();
+    updateDestination.reset();
+    setEnabled.reset();
+    deleteDestination.reset();
+  }
+
+  function openEditor(value: "new" | string) {
+    resetMutations();
+    setEditor(value);
+  }
+
+  async function save(form: DestinationFormState) {
+    const config = destinationConfig(form);
+    const password = form.password.length ? form.password : undefined;
+    if (editor === "new") {
+      await createDestination.mutateAsync({
+        type: form.type,
+        name: form.name.trim(),
+        config,
+        ...(password ? { password } : {}),
+      });
+    } else if (editing) {
+      await updateDestination.mutateAsync({
+        id: editing.id,
+        request: {
+          name: form.name.trim(),
+          config,
+          ...(password ? { password } : {}),
+        },
+      });
+    }
+    setEditor(null);
+    // The submitted request (including a plaintext password, when set) stays
+    // cached as this mutation's `variables` until reset — it must not linger
+    // in memory past the moment the write completed (D-012/D-023: write-only,
+    // not "write-only until the next unrelated render").
+    resetMutations();
+  }
+
+  function remove(destination: ExportDestinationView) {
+    const confirmed = window.confirm(
+      `Delete “${destination.name}”? Destinations with delivery history cannot be deleted and should be paused instead.`,
+    );
+    if (!confirmed) return;
+    deleteDestination.mutate(destination.id, {
+      onSuccess: () => {
+        if (editor === destination.id) setEditor(null);
+      },
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => openEditor("new")} disabled={editor === "new"}>Add destination</Button>
+      </div>
+
+      {editor && (
+        <DestinationEditor
+          key={editor}
+          destination={editing}
+          saving={createDestination.isPending || updateDestination.isPending}
+          onSave={save}
+          onCancel={() => setEditor(null)}
+        />
+      )}
+
+      {mutationError && <ErrorState error={mutationError} />}
+
+      {!tenant.exportDestinations.length ? (
+        <Card><EmptyState>No export destinations configured. Add one to prepare this tenant for export fan-out.</EmptyState></Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {tenant.exportDestinations.map((destination) => {
+            const toggling = setEnabled.isPending && setEnabled.variables?.id === destination.id;
+            const deleting = deleteDestination.isPending && deleteDestination.variables === destination.id;
+            return (
+              <Card
+                key={destination.id}
+                title={destination.name}
+                actions={(
+                  <div className="flex gap-2">
+                    <Badge tone={destination.enabled ? "green" : "gray"}>
+                      {destination.enabled ? "enabled" : "paused"}
+                    </Badge>
+                    <Badge>{destination.type}</Badge>
+                  </div>
+                )}
+              >
+                <dl className="space-y-2 text-xs">
+                  {Object.entries(destination.config ?? {}).map(([key, value]) => (
+                    <div key={key} className="flex justify-between gap-5 border-b border-dashed border-rule/50 pb-2">
+                      <dt className="text-ink-soft">{formatConfigKey(key)}</dt>
+                      <dd className="break-all text-right font-bold text-ink">{String(value)}</dd>
+                    </div>
+                  ))}
+                  <div className="flex justify-between gap-5">
+                    <dt className="text-ink-soft">Credential</dt>
+                    <dd className={destination.secretSet ? "font-bold text-accent" : "text-ink-soft"}>
+                      {destination.secretSet ? "● set" : "○ none"}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-rule/50 pt-3">
+                  <Button variant="ghost" onClick={() => openEditor(destination.id)} disabled={editor === destination.id}>
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={toggling}
+                    onClick={() => setEnabled.mutate({ id: destination.id, enabled: !destination.enabled })}
+                  >
+                    {toggling ? "Saving…" : destination.enabled ? "Pause" : "Enable"}
+                  </Button>
+                  <Button variant="danger" disabled={deleting} onClick={() => remove(destination)}>
+                    {deleting ? "Deleting…" : "Delete"}
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DestinationFormState {
+  type: DestinationType;
+  name: string;
+  bucket: string;
+  region: string;
+  prefix: string;
+  endpoint: string;
+  pathStyleAccess: boolean;
+  host: string;
+  port: string;
+  username: string;
+  remotePath: string;
+  hostKeyFingerprint: string;
+  implicitTls: boolean;
+  password: string;
+}
+
+function blankDestination(type: DestinationType = "S3"): DestinationFormState {
+  return {
+    type,
+    name: "",
+    bucket: "",
+    region: "",
+    prefix: "",
+    endpoint: "",
+    pathStyleAccess: false,
+    host: "",
+    port: type === "SFTP" ? "22" : type === "FTPS" ? "21" : "",
+    username: "",
+    remotePath: "",
+    hostKeyFingerprint: "",
+    implicitTls: false,
+    password: "",
+  };
+}
+
+function destinationForm(destination: ExportDestinationView | null): DestinationFormState {
+  if (!destination) return blankDestination();
+  const config = destination.config ?? {};
+  return {
+    ...blankDestination(destination.type),
+    name: destination.name,
+    bucket: configString(config, "bucket"),
+    region: configString(config, "region"),
+    prefix: configString(config, "prefix"),
+    endpoint: configString(config, "endpoint"),
+    pathStyleAccess: configBoolean(config, "pathStyleAccess"),
+    host: configString(config, "host"),
+    port: configNumber(config, "port", destination.type === "SFTP" ? 22 : 21).toString(),
+    username: configString(config, "username"),
+    // The fallbacks let an operator repair a pre-V4 row even if it is returned before
+    // the migration has run; every save writes only the canonical snake_case keys.
+    remotePath: configString(config, "remote_path", "remotePath"),
+    hostKeyFingerprint: configString(config, "host_key_fingerprint", "hostKeyFingerprint"),
+    implicitTls: configBoolean(config, "implicit_tls", "implicitTls"),
+    password: "", // D-012: never hydrate or prefill a secret on edit.
+  };
+}
+
+function destinationConfig(form: DestinationFormState): Record<string, unknown> {
+  if (form.type === "S3") {
+    return {
+      bucket: form.bucket.trim(),
+      region: form.region.trim(),
+      ...(form.prefix.trim() ? { prefix: form.prefix.trim() } : {}),
+      ...(form.endpoint.trim() ? { endpoint: form.endpoint.trim() } : {}),
+      pathStyleAccess: form.pathStyleAccess,
+    };
+  }
+  if (form.type === "SFTP") {
+    return {
+      host: form.host.trim(),
+      port: Number(form.port),
+      username: form.username.trim(),
+      remote_path: form.remotePath.trim(),
+      ...(form.hostKeyFingerprint.trim()
+        ? { host_key_fingerprint: form.hostKeyFingerprint.trim() }
+        : {}),
+    };
+  }
+  return {
+    host: form.host.trim(),
+    port: Number(form.port),
+    username: form.username.trim(),
+    remote_path: form.remotePath.trim(),
+    implicit_tls: form.implicitTls,
+  };
+}
+
+function DestinationEditor({
+  destination,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  destination: ExportDestinationView | null;
+  saving: boolean;
+  onSave: (form: DestinationFormState) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState(() => destinationForm(destination));
+  const inputClass = "mt-1 w-full rounded border border-rule/70 bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-accent";
+  const labelClass = "text-[10px] font-bold uppercase tracking-wider text-ink-soft";
+
+  function set<K extends keyof DestinationFormState>(key: K, value: DestinationFormState[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function changeType(type: DestinationType) {
+    setForm((current) => ({ ...blankDestination(type), name: current.name }));
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void onSave(form).catch(() => undefined);
+  }
+
+  return (
+    <Card title={destination ? `Edit ${destination.name}` : "Add export destination"}>
+      <form className="space-y-4" onSubmit={submit}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
+            Type
+            <select
+              className={inputClass}
+              value={form.type}
+              disabled={!!destination}
+              onChange={(event) => changeType(event.target.value as DestinationType)}
+            >
+              <option value="S3">S3</option>
+              <option value="SFTP">SFTP</option>
+              <option value="FTPS">FTPS</option>
+            </select>
+          </label>
+          <label className={labelClass}>
+            Name
+            <input className={inputClass} required value={form.name} onChange={(event) => set("name", event.target.value)} />
+          </label>
+        </div>
+
+        {form.type === "S3" ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <DestinationInput label="Bucket" required value={form.bucket} onChange={(value) => set("bucket", value)} />
+            <DestinationInput label="Region" required value={form.region} onChange={(value) => set("region", value)} placeholder="us-east-1" />
+            <DestinationInput label="Prefix" value={form.prefix} onChange={(value) => set("prefix", value)} placeholder="reports/" />
+            <DestinationInput label="Custom endpoint" value={form.endpoint} onChange={(value) => set("endpoint", value)} placeholder="https://s3.example.com" />
+            <label className="flex items-center gap-2 text-xs font-bold text-ink-soft sm:col-span-2">
+              <input type="checkbox" checked={form.pathStyleAccess} onChange={(event) => set("pathStyleAccess", event.target.checked)} />
+              Use path-style bucket access
+            </label>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <DestinationInput label="Host" required value={form.host} onChange={(value) => set("host", value)} />
+            <DestinationInput label="Port" required type="number" min={1} max={65535} value={form.port} onChange={(value) => set("port", value)} />
+            <DestinationInput label="Username" required value={form.username} onChange={(value) => set("username", value)} />
+            <DestinationInput label="Remote path" required value={form.remotePath} onChange={(value) => set("remotePath", value)} placeholder="/inbound/reports" />
+            {form.type === "SFTP" && (
+              <DestinationInput
+                label="Host key fingerprint"
+                value={form.hostKeyFingerprint}
+                onChange={(value) => set("hostKeyFingerprint", value)}
+                placeholder="SHA256:…"
+              />
+            )}
+            {form.type === "FTPS" && (
+              <label className="flex items-center gap-2 text-xs font-bold text-ink-soft">
+                <input type="checkbox" checked={form.implicitTls} onChange={(event) => set("implicitTls", event.target.checked)} />
+                Implicit TLS (usually port 990)
+              </label>
+            )}
+            <label className={`${labelClass} sm:col-span-2`}>
+              {destination?.secretSet ? "Change password (currently ● set)" : "Password (currently ○ none)"}
+              <input
+                className={inputClass}
+                type="password"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={(event) => set("password", event.target.value)}
+                placeholder={destination?.secretSet ? "Leave blank to keep current password" : "Optional write-only password"}
+              />
+              <span className="mt-1 block normal-case tracking-normal text-ink-soft/80">
+                Write-only: this value is submitted once and is never returned or prefilled.
+              </span>
+            </label>
+          </div>
+        )}
+
+        <div className="flex gap-2 border-t border-rule/50 pt-4">
+          <Button type="submit" disabled={saving}>{saving ? "Saving…" : destination ? "Save changes" : "Add destination"}</Button>
+          <Button variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function DestinationInput({
+  label,
+  value,
+  onChange,
+  required = false,
+  type = "text",
+  placeholder,
+  min,
+  max,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  type?: "text" | "number";
+  placeholder?: string;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <label className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">
+      {label}
+      <input
+        className="mt-1 w-full rounded border border-rule/70 bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+        type={type}
+        required={required}
+        min={min}
+        max={max}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function configString(config: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    if (typeof config[key] === "string") return config[key] as string;
+  }
+  return "";
+}
+
+function configNumber(config: Record<string, unknown>, key: string, fallback: number): number {
+  return typeof config[key] === "number" ? config[key] : fallback;
+}
+
+function configBoolean(config: Record<string, unknown>, ...keys: string[]): boolean {
+  for (const key of keys) {
+    if (typeof config[key] === "boolean") return config[key] as boolean;
+  }
+  return false;
+}
+
+function formatConfigKey(key: string): string {
+  return key
+    .replaceAll("_", " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
 }
 
 function CapturesTab({ tenant }: { tenant: TenantDetail }) {

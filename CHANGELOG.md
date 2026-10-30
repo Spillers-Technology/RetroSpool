@@ -11,6 +11,27 @@ All notable changes to retrospool are documented here. The format follows
 > ([docs/decisions.md](docs/decisions.md), D-001 onward), which records every
 > architectural decision — including the ones that were later superseded and why.
 
+## [Unreleased]
+
+### Added
+- Authenticated, CSRF-protected export-destination management: create, edit, pause/enable,
+  and delete APIs plus a type-aware S3/SFTP/FTPS editor in each tenant's Destinations tab.
+- Audited destination mutations and focused service/controller coverage for CRUD,
+  type/config mismatch rejection, write-only secrets, and cross-tenant 404 behavior.
+
+### Changed
+- Destination JSONB uses the documented exporter-facing keys (`remote_path`,
+  `host_key_fingerprint`, and `implicit_tls`); V4 normalizes rows created by the earlier
+  approval path, while the public submission request remains camelCase.
+- A destination with `export_attempt` history must be paused instead of deleted. V4
+  replaces the cascading destination FK with `ON DELETE RESTRICT`, making the service's
+  409 policy race-safe and preserving delivery history.
+
+### Security
+- SFTP/FTPS passwords pass through `SecretWriter` once and are represented to clients
+  only by `secretSet`; edit forms never hydrate or prefill them. Every update/delete
+  lookup combines the path tenant id with the destination id (D-008).
+
 ## [0.2.0] — 2026-07-12
 
 ### Added

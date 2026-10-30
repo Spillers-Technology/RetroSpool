@@ -38,7 +38,7 @@ public class ExportDestination {
     @Column(name = "config", nullable = false, columnDefinition = "jsonb")
     private String config = "{}";
 
-    /** SFTP password ref (password auth per D-010). Write-only (D-012). */
+    /** SFTP/FTPS password ref (password auth per D-010). Write-only (D-012). */
     @Column(name = "secret_ref")
     private String secretRef;
 

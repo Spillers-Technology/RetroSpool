@@ -172,8 +172,8 @@ marker.
 
 ## Export destinations
 
-**Execution is planned; not delivered in v0.1.0.** The schema and admin read views
-exist, but destination editing, dispatch, and retry workers do not.
+**Execution is planned; editing is delivered.** The schema, admin read views, and
+authenticated CRUD/editor exist (D-025); dispatch and retry workers do not.
 
 Per tenant, multiple allowed (e.g. S3 archive + SFTP downstream). Each capture is queued
 to every enabled destination. Retry with exponential backoff in `export_attempt`,
@@ -205,9 +205,11 @@ by Spring Boot and authenticated at the Authentik boundary described above.
 Delivered in v0.2.0 (D-024): the standalone public `/submit` page — WS/HOD upload → draft
 review → Test Connection → submit — outside the admin identity gate.
 
-Still planned: the admin export-destination editor with conditional fields and write-only
-credential replacement UX (submission intake can now create SFTP destinations on approval,
-but there is no in-console destination editor yet).
+Delivered after v0.2.0 (D-025): a type-aware admin destination editor with create/edit,
+pause/enable, and delete controls. SFTP/FTPS passwords are submit-only and represented on
+reads solely by `secretSet`. Destination ids are always resolved together with the path's
+tenant id; rows with delivery history cannot be deleted. A live destination connection
+test remains planned with export execution.
 
 ## Out of scope
 

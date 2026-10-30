@@ -282,3 +282,28 @@ two-surface model (D-007) planned. This delivers it:
 
 This does **not** advance the poller or export execution (Phases 4–5), which remain gated
 on live IBM i creds (D-011). 1.0.0 still awaits that first real host validation.
+
+### D-025 — Destination management preserves tenant and delivery-history boundaries
+**Accepted** · 2026-08-29
+The authenticated tenant console now owns export-destination create/update,
+enable/disable, and delete operations. Each destination-by-id lookup is a combined
+`tenant_id + id` query; a real id under the wrong tenant path returns the same 404 as an
+unknown id (D-008). SFTP/FTPS passwords are write-only: mutation DTOs accept plaintext,
+`SecretWriter` persists it, and response DTOs expose only `secretSet` (D-012/D-023).
+
+The exporter-facing JSONB contract uses the field names already documented on the entity
+and in the architecture: SFTP `remote_path` / `host_key_fingerprint` and FTPS
+`remote_path` / `implicit_tls` (S3 retains `pathStyleAccess`). Public submission JSON is
+still camelCase; approval translates it. V4 normalizes rows created before that boundary
+was explicit.
+
+Deletion is hard-delete only for a destination with no attempt history. Once any
+`export_attempt` exists, the API returns 409 and directs the operator to pause the
+destination. V4 changes the FK from cascade to `ON DELETE RESTRICT`, so a concurrent
+attempt or direct SQL cannot silently erase delivery evidence. Secret rotation replaces
+the destination's reference; the encrypted store has no deletion convention, so the old
+secret row remains orphaned rather than inventing lifecycle policy here.
+
+This decision completes destination CRUD/editor scope only. Export dispatch, retries,
+and live destination connection tests remain with Phase 5 and do not claim IBM i host
+validation.
